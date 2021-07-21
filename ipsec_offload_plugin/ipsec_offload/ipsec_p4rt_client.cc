@@ -109,6 +109,25 @@ extern "C" enum ipsec_status p4rt_init();
 #define ELECTION_ID_HIGH 1
 #define ELECTION_ID_LOW  0
 
+std::string EncodeByteValue(int arg_count...) {
+  std::string byte_value;
+  va_list args;
+  va_start(args, arg_count);
+
+  for (int arg = 0; arg < arg_count; ++arg) {
+    uint8_t byte = va_arg(args, int);
+    byte_value.push_back(byte);
+  }
+
+  va_end(args);
+  return byte_value;
+}
+
+std::string CanonicalizeIp(const char* ipv4addr) {
+  return EncodeByteValue(4, (ipv4addr[0] & 0xff), ((ipv4addr[1]) & 0xff),
+                         ((ipv4addr[2]) & 0xff), ((ipv4addr[3]) & 0xff));
+}
+
 enum table_index {
   IPSEC_TX_SPD_TABLE_IDX,
   TX_SA_CLASSIFICATION_TABLE_IDX,
@@ -130,9 +149,8 @@ enum table_index {
 static string ipsec_tbl_names[TABLE_INDEX_MAX] = {
   "tx_spd", "tx_sa_classification", "rx_sa_classification",
   "encap_mod", "decap_mod", "post_decrypt",
-  "tx_transport_action", "tx_tunnel_action", "rx_tunnel_action",
-  "protect_action", "encap_mod_action", "decap_mod_action",
-  "rx_post_decrypt_action"
+  "tx_transport_action", "tx_tunnel_action", "rx_tunnel_action", "protect_action",
+  "encap_mod_action", "decap_mod_action", "rx_post_decrypt_action",
 };
 
 struct p4table_info {
@@ -207,7 +225,7 @@ int parse_p4info(void) {
 	    tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].name) {
 	    tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name) {
+        } else if (table.preamble().name() == tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name) {
 	    tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_TABLE_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_TABLE_IDX].id = table.preamble().id();
@@ -218,15 +236,15 @@ int parse_p4info(void) {
     for (const auto& table : p4info.actions()) {
         if (table.preamble().name() == tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].name) {
 	    tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].name) {
+        } else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].name) {
 	    tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].name) {
+        } else if (table.preamble().name() == tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].name) {
 	    tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[IPSEC_PROTECT_ACTION_IDX].name) {
 	    tbl_info[IPSEC_PROTECT_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
 	    tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
+        } else if (table.preamble().name() == tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
 	    tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_ACTION_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_ACTION_IDX].id = table.preamble().id();
@@ -455,6 +473,11 @@ class IPSecP4RuntimeClient {
 
 			STREAM_CHANNEL();
 
+                        if (p4rt_ctx.info_list[IPSEC_TX_SPD_TABLE_IDX].id == 0) {
+                                std::cout << "IPSEC_TX_SPD_TABLE_IDX is 0, not sending grpc request for programming this table"
+                                        << std::endl;
+                                return IPSEC_SUCCESS;
+                        }			
 			table_entry.set_table_id(p4rt_ctx.info_list[IPSEC_TX_SPD_TABLE_IDX].id);
 			table_entry.set_priority(match_priority);
 
@@ -511,28 +534,47 @@ class IPSecP4RuntimeClient {
 			ClientContext context;
 			p4::v1::Action_Param *params;
 			std::string protocol={0};
-	  		std::string offload = {1};
-			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
 
-			STREAM_CHANNEL();
+                        table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
+                        table_entry.set_priority(1);
+
+                        p4::v1::FieldMatch_Ternary *ternary;
+                        STREAM_CHANNEL();
+			
+#if 0
 			//offload = to_string((uint32_t)crypto_offload);
 			field_match = table_entry.add_match();
 			field_match->set_field_id(1);
 			field_match->mutable_exact()->set_value(offload);
-
 			field_match = table_entry.add_match();
 			field_match->set_field_id(2);
 			field_match->mutable_exact()->set_value(convert_ip_to_str(src_ip_addr));
-
 			field_match=table_entry.add_match();
 			field_match->set_field_id(3);
 			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
-
 			field_match = table_entry.add_match();
 			field_match->set_field_id(4);
-
 			protocol[0] = proto;
 			field_match->mutable_exact()->set_value(protocol);
+#endif
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(1);
+                        ternary = field_match->mutable_ternary();
+                        ternary->set_value(CanonicalizeIp(src_ip_addr));
+                        ternary->set_mask(EncodeByteValue(8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
+
+                        field_match=table_entry.add_match();
+                        field_match->set_field_id(2);
+                        ternary = field_match->mutable_ternary();
+                        ternary->set_value(CanonicalizeIp(dst_ip_addr));
+                        ternary->set_mask(EncodeByteValue(8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
+
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(3);
+                        ternary = field_match->mutable_ternary();
+                        protocol[0] = proto;
+                        ternary->set_value(protocol);
+                        ternary->set_mask("\xff");
 
 			if (table_op == IPSEC_TABLE_ADD) {
 				if (tunnel_mode)
@@ -552,13 +594,10 @@ class IPSecP4RuntimeClient {
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
 			}
-
 			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-
 			request.set_device_id(DEVICE_ID);
 			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
 			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
-
 			Status status = stub_->Write(&context, request, &reply);
 			if(status.ok()) {
 				return IPSEC_SUCCESS;
@@ -567,7 +606,7 @@ class IPSecP4RuntimeClient {
 					<< std::endl;
 				return IPSEC_FAILURE;
 			}
-		}
+		}		
 
 		enum ipsec_status P4runtimeIpsecRxSaClassificationTable(enum ipsec_table_op table_op,
 									char dst_ip_addr[16],
@@ -632,7 +671,7 @@ class IPSecP4RuntimeClient {
 								   char crypto_status,
 								   uint16_t crypto_tag,
 								   char dst_ip_addr[16],
-								   char dst_ip_mask[16],
+								   char src_ip_addr[16],
 								   uint32_t match_priority,
 								   uint32_t mod_blob_ptr) {
 			TableEntry table_entry;
@@ -642,9 +681,20 @@ class IPSecP4RuntimeClient {
 			WriteResponse reply;
 			ClientContext context;
 			p4::v1::Action_Param *params;
+#if 0			
 			p4::v1::FieldMatch_Ternary *ternary;
+#endif
+                        STREAM_CHANNEL();
+                        table_entry.set_table_id(p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].id);
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(1);
+                        field_match->mutable_exact()->set_value(convert_ip_to_str(src_ip_addr));
 
-			STREAM_CHANNEL();
+
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(2);
+                        field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
+#if 0			
 	  		std::string offload = {0};
 	  		std::string offload_mask = {1};
 	  		std::string crypt_status = {0};
@@ -678,13 +728,14 @@ class IPSecP4RuntimeClient {
 			ternary = field_match->mutable_ternary();
 			ternary->set_value(convert_ip_to_str(dst_ip_addr));
 			ternary->set_mask(convert_ip_to_str(dst_ip_mask));
-
+#endif
 			if (table_op == IPSEC_TABLE_ADD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
+#if 0				
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(Uint32ToByteStream(mod_blob_ptr));
-
+#endif
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 
@@ -725,12 +776,18 @@ class IPSecP4RuntimeClient {
 	  		std::string offload = {1};
 
 			STREAM_CHANNEL();
+                        if (p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id == 0) {
+                                std::cout << "OUTER_IPV4_ENCAP_MOD_TABLE_IDX is 0, not sending grpc request for programming this table"
+                                        << std::endl;
+                                return IPSEC_SUCCESS;
+                        }			
 			table_entry.set_table_id(p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id);
 
 			field_match->set_field_id(1);
 			field_match->mutable_exact()->set_value(Uint32ToByteStream(mod_blob_ptr));
 
-			protocol[0] = proto;
+			protocol[0] = 4; //proto;
+			
 			if (table_op == IPSEC_TABLE_ADD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
@@ -745,6 +802,7 @@ class IPSecP4RuntimeClient {
 				params->set_param_id(3);
 				params->set_value(protocol);
 
+#if 0				
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(4);
 				params->set_value(ConvertMacToStr(smac));
@@ -752,7 +810,7 @@ class IPSecP4RuntimeClient {
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(5);
 				params->set_value(ConvertMacToStr(dmac));
-
+#endif
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
@@ -786,6 +844,11 @@ class IPSecP4RuntimeClient {
 			p4::v1::Action_Param *params;
 
 			STREAM_CHANNEL();
+                        if (p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id == 0) {
+                                std::cout << "OUTER_IPV4_DECAP_MOD_TABLE_IDX is 0, not sending grpc request for programming this table"
+                                        << std::endl;
+                                return IPSEC_SUCCESS;
+                        }			
 			table_entry.set_table_id(p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id);
 
 			field_match->set_field_id(1);
@@ -821,6 +884,7 @@ class IPSecP4RuntimeClient {
 				return IPSEC_FAILURE;
 			}
 		}
+}		
 
  private:
     std::shared_ptr<::grpc::ChannelCredentials> getChannelCredentials() {
