@@ -88,6 +88,16 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 						char inner_smac[16],
 						char inner_dmac[16]);
 
+enum ipsec_status ipsec_outer_ipv4_vxlan_encap_mod_table(enum ipsec_table_op table_op,
+                                                         uint32_t mod_blob_ptr,
+                                                         char src_ip_addr[16],
+                                                         char dst_ip_addr[16],
+                                                         uint32_t proto,
+                                                         char smac[16],
+                                                         char dmac[16]);
+
+
+
 #define SPI_MAX_LIMIT 0xffffff
 struct private_ipsec_offload_t {
 
@@ -751,7 +761,16 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
 				     "add entry failed err_code[ %d]", err);
-
+			// Program the same information in both the tables to support
+			// IPSEC ONLY and VXLAN+IPSEC case in one package
+                        err = ipsec_outer_ipv4_vxlan_encap_mod_table(IPSEC_TABLE_ADD,
+                                                                     offload_id,
+                                                                     src_outer, dst_outer,
+                                                                     id->src_ts->get_protocol(id->src_ts),
+                                                                     inner_smac, inner_dmac);
+                        if(err != IPSEC_SUCCESS)
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_vxlan_encap_outer_ipv4_mod:"
+						"add entry failed err_code[ %d]", err);
 		}
 
 		this->ipsec_offload_params->remove(this->ipsec_offload_params, current_entry);
