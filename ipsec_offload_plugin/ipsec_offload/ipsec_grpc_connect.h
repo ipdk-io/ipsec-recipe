@@ -1,0 +1,18 @@
+#ifndef IPSEC_GRPC_CONNECT_H_
+#define IPSEC_GRPC_CONNECT_H_
+
+#define NUM_TRIES 20
+#define INVALID_SA 0x1000000
+#define INVALID_INIT_SA 0x1000001
+
+enum ipsec_status {
+	IPSEC_SUCCESS,
+	IPSEC_FAILURE=-1
+};
+
+enum ipsec_table_op {
+	IPSEC_TABLE_ADD,
+	IPSEC_TABLE_DEL
+};
+
+#endif // IPSEC_GRPC_CONNECT_H_
