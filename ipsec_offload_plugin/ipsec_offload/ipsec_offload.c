@@ -33,6 +33,8 @@
 #endif
 
 #define PROTO_BYTES_MAX 2000
+#define CONFIG_DATA_MAX 1000
+
 typedef struct private_ipsec_offload_t private_ipsec_offload_t;
 #ifdef ENABLEGRPC
 enum ipsec_status gnmi_init();
@@ -240,7 +242,7 @@ static void fill_basic_params(ipsec_offload_basic_params_t *base,
 	memcpy(base->dst.addr, dst.ptr, dst.len);
 }
 
-static void logs(ipsec_offload_config_queue_data_t *hdr) {
+static void logs(struct ipsec_offload_config_queue_data *hdr) {
 	DBG2(DBG_KNL, "ipsec:: spi: 0x%x\n", hdr->spi);
 	char *fmt;
 	if (hdr->cookie == ARW_CHK_FAIL) {
@@ -260,7 +262,7 @@ static void logs(ipsec_offload_config_queue_data_t *hdr) {
 	DBG2(DBG_KNL, fmt, hdr->cookie);
 }
 
-static void process_expire(ipsec_offload_config_queue_data_t *hdr)
+static void process_expire(struct ipsec_offload_config_queue_data *hdr)
 {
 	uint8_t protocol;
 	uint32_t spi;
@@ -290,22 +292,66 @@ static void process_expire(ipsec_offload_config_queue_data_t *hdr)
 	}
 }
 
+static int fill_config_data(struct ipsec_offload_config_queue_data *data, char *buf)
+{
+   int proto, family;
+   char* rest = buf;
+   int soft_expire;
+   char* token;
+
+    while ((token = strtok_r(rest, ",", &rest))) {
+	char* key = strtok(token, ":");
+	char* value = strtok(NULL, ":");
+
+	if (!strcmp("ipsec-sa-spi", key))
+		sscanf(value, "%u", &data->spi);
+	else if (!strcmp(" soft-lifetime-expire", key)) {
+		sscanf(value, "%d", &soft_expire);
+		if (soft_expire)
+			data->cookie = SOFT_AGING_THRESHOLD_CROSSED;
+		else
+			data->cookie = HARD_AGING_THRESHOLD_CROSSED;
+	}
+	else if (!strcmp(" ipsec-sa-protocol", key)) {
+		sscanf(value, "%d", &proto);
+		data->proto = proto;
+	}
+	else if (!strcmp(" ipsec-sa-dest-address", key))
+		sscanf(value, "%s", data->dip);
+	else if (!strcmp(" address-family", key)) {
+		sscanf(value, "%d", &family);
+		if (family == 1)
+			data->family = IPv4;
+		else
+			data->family = IPv6;
+	}
+	else
+		return -1;
+    }
+    return 0;
+}
+
 void *audit_log_poll(void *arg) {
 	pthread_detach(pthread_self());
-	ipsec_offload_config_queue_data_u cfg_data;
+	struct ipsec_offload_config_queue_data cfg_data;
+	char config_data_buf[CONFIG_DATA_MAX];
+	int i;
 
 	while (1) {
 		if (*(bool *)arg == true) {
 			pthread_exit(NULL);
 		}
 
-		int ret = ipsec_fetch_audit_log(cfg_data.serialized_ipsec_offload_config_queue_data_t,
-									sizeof(ipsec_offload_config_queue_data_t));
+		int ret = ipsec_fetch_audit_log(config_data_buf, CONFIG_DATA_MAX);
 
 		if(ret != IPSEC_FAILURE)
 		{
-			cfg_data.config_queue_data.sip[IP_BUF] = '\0';
-			process_expire(&cfg_data.config_queue_data);
+			if (!fill_config_data(&cfg_data, config_data_buf)) {
+				DBG1(DBG_KNL, "audit_log data= spi=%u:proto=%d:dip=%s:family=%d:cookie=%d\n",
+				     cfg_data.spi, cfg_data.proto, cfg_data.dip, cfg_data.family, cfg_data.cookie);
+				cfg_data.sip[IP_BUF] = '\0';
+				process_expire(&cfg_data);
+			}
 		}
 		usleep(TEN_MS);
 	}
@@ -313,7 +359,6 @@ void *audit_log_poll(void *arg) {
 }
 
 static void ipsec_auto_config_init(pthread_t *tid, bool *flag) {
-#if 0 // TODO: need to enable it when it is ready at server
 	if (ipsec_subscribe_audit_log() == IPSEC_FAILURE) {
 		DBG2(DBG_KNL,"Inline_crypto_ipsec audit log subscribe failed :: [%s] \n", __func__);
 		return;
