@@ -29,7 +29,7 @@ Build and run StrongSwan on Linux
 	cd ..
 
 	#build StrongSwan
-	./swanbuild_p4.sh -t x86 -o $DEPS_INSTALL --enable_grpc
+	./swanbuild_p4.sh -t native -o $DEPS_INSTALL --enable_grpc
 
 	#Run StrongSwan
 	Generate the key and cert using openssl commands.

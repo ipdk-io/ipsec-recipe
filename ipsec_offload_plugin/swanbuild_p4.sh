@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ARGUMENT_LIST=(
     "b"
@@ -34,9 +34,9 @@ function error_log() {
           e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 (builds for ARM)
           If --enable_grpc option is provided, code will use grpc instead of sockets
           e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 --enable_grpc (builds for ARM)
-          If building for x86 platform, pass x86 option to -t
-          e.g., swanbuild.sh -t x86 --enable_grpc (builds for x86)
-          e.g., ./swanbuild_p4.sh -t x86 -o <dependency install dir> --enable_grpc
+          If building natively, pass native option to -t
+          e.g., swanbuild.sh -t native --enable_grpc (building on same host)
+          e.g., ./swanbuild_p4.sh -t native -o <dependency install dir> --enable_grpc
      or:  swanbuild -d BUILDDIR [Builds strongswan code in the dir provided]
           e.g., swanbuild.sh -d ./strongswan-5.9.4 -t /opt/mev/acc/simics-mev-b0-1505
      VERSION number can be found at: https://download2.strongswan.org/"
@@ -68,7 +68,7 @@ while [[ $# -gt 0 ]]; do
 
 		*)
                if [[ $accsdkdir -ne 1 ]]; then
-                    echo "ERROR: Please provide acc sdk dir path or 'x86'"
+                    echo "ERROR: Please provide acc sdk dir path or 'native'"
                     error_log
                fi
 
@@ -81,8 +81,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-if [ $ACC_SDK_DIR == "x86" ]; then
-     PLATFORM="x86"
+if [ $ACC_SDK_DIR == "native" ]; then
+     PLATFORM="native"
 elif [ ! -d $ACC_SDK_DIR ]; then
      echo "ERROR: Invalid acc sdk directory path!!"
      exit
@@ -102,6 +102,7 @@ if [ $enablegrpc -eq 1 ]; then
      fi
 
      GRPC_DIR=$DEPS_INSTALL_PATH
+     THIRD_PARTY_DIR=$PWD/third-party/
 fi
 
 DIR=$BUILDDIR
@@ -296,9 +297,9 @@ if [ $PLATFORM == "arm" ]; then
      source $ACC_SDK_DIR/environment-setup-aarch64-intel-linux
 fi
 
-if [[ -n $GRPC_DIR ]]; then
+if [[ -d $THIRD_PARTY_DIR ]]; then
      echo "================== COMPILING THIRD-PARTY DIRECTORY ================"
-     cd $OFFLOAD_DIR/third-party/
+     cd $THIRD_PARTY_DIR
      ./autogen.sh
      ./configure --enable-grpc
      make uninstall
@@ -329,19 +330,18 @@ if [[ -n $GRPC_DIR ]]; then
      cd $OFFLOAD_DIR/$DIR
      echo "================== GNMI COMPILATION DONE ===================="
 
-     echo "================== COMPILING P4RUNTIME PROTOS ================"
+     echo "================== COMPILING P4RUNTIME ================"
      cd $OFFLOAD_DIR/ipsec_offload/p4runtime/
      ./autogen.sh
      ./configure --enable-grpc
      make
      cp -r $OFFLOAD_DIR/ipsec_offload/p4runtime  $OFFLOAD_DIR/strongswan/src/libcharon/plugins/ipsec_offload/
      cd $OFFLOAD_DIR/$DIR
-     echo "================== P4RUNTIME PROTOS COMPILATION DONE ===================="
-
+     echo "================== P4RUNTIME COMPILATION DONE ===================="
 fi
 
-if [ $PLATFORM == "x86" ]; then
-     ./configure --prefix=$USR --sysconfdir=$ETC --enable-ipsec-offload
+if [ $PLATFORM == "native" ]; then
+     ./configure --prefix=$USR --sysconfdir=$ETC --enable-ipsec-offload --disable-dependency-tracking
 else
      ./configure --prefix=$USR --sysconfdir=$ETC --enable-ipsec-offload --host=aarch64-intel-linux
 fi
