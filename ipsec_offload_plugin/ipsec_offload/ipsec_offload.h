@@ -148,15 +148,6 @@ struct ipsec_offload_config_queue_data {
 	char dip[IP_BUF + 1];
 };
 
-typedef struct ipsec_offload_config_queue_data ipsec_offload_config_queue_data_t;
-
-union ipsec_offload_config_queue_data_u {
-    ipsec_offload_config_queue_data_t config_queue_data;
-    char serialized_ipsec_offload_config_queue_data_t[sizeof(ipsec_offload_config_queue_data_t)];
-};
-
-typedef union ipsec_offload_config_queue_data_u ipsec_offload_config_queue_data_u;
-
 /**
  * Create an ipsec offload interface instance.
  *

@@ -74,6 +74,7 @@ string address = "127.0.0.1:50052";
 static std::string spi_path = "/ipsec-offload/ipsec-spi/rx-spi";
 static std::unique_ptr< ::grpc::ClientReaderWriterInterface<
        ::gnmi::SubscribeRequest, ::gnmi::SubscribeResponse>> stream_reader_writer;
+static ::grpc::ClientContext ctx_p;
 
 enum ipsec_status gnmi_init() {
     bool status;
@@ -260,8 +261,7 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
     }
 
     bool GnmiSubOnChange(std::string path) {
-      ::grpc::ClientContext ctx;
-      stream_reader_writer = stub->Subscribe(&ctx);
+      stream_reader_writer = stub->Subscribe(&ctx_p);
       ::gnmi::SubscribeRequest req = BuildGnmiSubOnchangeRequest(path);
       if (ABSL_PREDICT_TRUE(stream_reader_writer->Write(req)))
         return true;
@@ -339,22 +339,17 @@ enum ipsec_status ipsec_fetch_audit_log(char *cq_data, int size) {
     std::string al_resp = "invalid";
 
     ::gnmi::SubscribeResponse resp;
-    if (stream_reader_writer->Read(&resp)) {
-      std::cout<<"fill the buffer";
-    }
-#if 0
-    IPSecOffloadPluginClient client(address);
-    al_resp = client.P4runtimesendAuditLog(true);
-    if (al_resp != "invalid") {
-        if (al_resp == "error") {
-            return IPSEC_FAILURE;
-        }
+    std::string value;
 
-        memcpy(cq_data, al_resp.c_str(), size);
-        return IPSEC_SUCCESS;
+    if (stream_reader_writer->Read(&resp) && resp.has_update()) {
+      value = resp.mutable_update()->mutable_update(0)->mutable_val()->string_val();
+      if (value.size() > size)
+	      return IPSEC_FAILURE;
+      memcpy(cq_data, value.c_str(), size);
+      cq_data[value.size()] = '\0';
+      return IPSEC_SUCCESS;
     }
-#endif
-    return IPSEC_SUCCESS;
+    return IPSEC_FAILURE;
 }
 
 enum ipsec_status ipsec_sa_add(char * buf) {
