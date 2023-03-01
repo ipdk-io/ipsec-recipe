@@ -369,7 +369,7 @@ static void ipsec_auto_config_init(pthread_t *tid, bool *flag) {
 		DBG2(DBG_KNL,"Inline_crypto_ipsec audit log thread creation failed :: [%s] \n", __func__);
 		return;
 	}
-#endif
+
 	return;
 }
 
