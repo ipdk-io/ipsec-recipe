@@ -38,6 +38,7 @@
 typedef struct private_ipsec_offload_t private_ipsec_offload_t;
 #ifdef ENABLEGRPC
 enum ipsec_status gnmi_init();
+enum ipsec_status p4rt_init();
 enum ipsec_status ipsec_fetch_spi(uint32_t *);
 enum ipsec_status ipsec_sa_add(char *buf);
 enum ipsec_status ipsec_sa_del(int offloadid, bool inbound);
@@ -913,6 +914,8 @@ ipsec_offload_t *ipsec_offload_create()
 #else
 	if (gnmi_init() == IPSEC_FAILURE)
 		DBG1(DBG_KNL, "gnmi init failed!\n");
+	if (p4rt_init() == IPSEC_FAILURE)
+		DBG1(DBG_KNL, "p4rt init failed!\n");
 
 	this->close = false;
 	ipsec_auto_config_init(&this->thread_id, &this->close);

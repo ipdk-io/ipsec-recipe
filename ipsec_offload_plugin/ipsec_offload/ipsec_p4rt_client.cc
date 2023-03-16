@@ -94,6 +94,8 @@ extern "C" enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 
 extern "C" enum ipsec_status ipsec_set_pipe(void);
 
+extern "C" enum ipsec_status p4rt_init();
+
 #define P4_INFO_FILE "/var/tmp/linux_networking.p4info.txt"
 #define P4_BIN_FILE "/var/tmp/ipsec_fixed_func.pb.bin"
 #define DEVICE_ID        1
@@ -114,7 +116,6 @@ extern "C" enum ipsec_status ipsec_set_pipe(void);
 #define DECAP_OUTER_IPV4_MOD_ACTION_ID  19827329
 #define RX_POST_DECRYPT_TABLE_ID	41233864
 #define RX_POST_DECRYPT_ACTION_ID	16818337
-string rt_address = "localhost:53000";
 
 /* This is temporary workaround Need to find proper solution */
 #define STREAM_CHANNEL() \
@@ -136,13 +137,78 @@ string rt_address = "localhost:53000";
 			if (resp_stream.arbitration().device_id() != DEVICE_ID)\
 				std::cout << "device id mismatch"<< resp_stream.arbitration().device_id()<< "\n";\
 
+/* text file in key=value format e.g. p4rt_server=127.0.0.1:9559 */
+static string config_file = "/usr/share/stratum/ipsec_offload.conf";
+
+#define P4RT_SERVER_NAME      "p4rt_server"
+#define P4RT_CLIENT_CERT_PATH "cli_cert"
+#define P4RT_CLIENT_KEY_PATH  "cli_key"
+#define P4RT_CA_CERT_PATH     "ca_cert"
+
+static struct p4rt_ctx {
+  string p4rt_server_addr;
+  string cli_cert;
+  string cli_key;
+  string ca_cert;
+} p4rt_ctx;
+
+enum ipsec_status p4rt_init() {
+
+     std::ifstream cFile (config_file);
+     if (cFile.is_open())
+     {
+         std::string line;
+         while(getline(cFile, line))
+        {
+             line.erase(std::remove_if(line.begin(), line.end(), isspace),
+                                  line.end());
+             if( line.empty() || line[0] == '#' )
+             {
+                 continue;
+             }
+             auto delimiterPos = line.find("=");
+             auto name = line.substr(0, delimiterPos);
+             auto value = line.substr(delimiterPos + 1);
+             std::cout << name << " " << value << '\n';
+	     if (name == P4RT_SERVER_NAME)
+	         p4rt_ctx.p4rt_server_addr = value;
+	     else if (name == P4RT_CLIENT_CERT_PATH)
+	         p4rt_ctx.cli_cert = value;
+	     else if (name == P4RT_CLIENT_KEY_PATH)
+	         p4rt_ctx.cli_key = value;
+	     else if (name == P4RT_CA_CERT_PATH)
+	         p4rt_ctx.ca_cert = value;
+         }
+     }
+     else
+     {
+         return IPSEC_FAILURE;
+     }
+     return IPSEC_SUCCESS;
+}
+
+static void readFile(const std::string& filename, std::string& data)
+ {
+         std::ifstream file (filename.c_str ());
+
+         if (file.is_open ())
+         {
+                 std::stringstream ss;
+                 ss << file.rdbuf ();
+                 file.close ();
+                 data = ss.str ();
+         }
+
+         return;
+ }
+
 class IPSecP4RuntimeClient {
 	public:
 		IPSecP4RuntimeClient(const std::string& server)
 		{
 		    stub_ = P4Runtime::NewStub(grpc::CreateChannel(
 						server,
-						grpc::InsecureChannelCredentials()));
+						getChannelCredentials()));
 		}
 
 		void SetPipe (void) {
@@ -633,16 +699,34 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
-	private:
-		std::unique_ptr<P4Runtime::Stub> stub_;
-		std::unique_ptr<grpc::ClientReaderWriterInterface<
-				::p4::v1::StreamMessageRequest, ::p4::v1::StreamMessageResponse>>
-				stream_channel;
+ private:
+    std::shared_ptr<::grpc::ChannelCredentials> getChannelCredentials() {
+    std::string cert, key, ca;
 
+      readFile (p4rt_ctx.cli_cert, cert);
+      readFile (p4rt_ctx.cli_key, key);
+      readFile (p4rt_ctx.ca_cert, ca);
+
+      grpc::SslCredentialsOptions opts =
+             {
+                ca
+               ,key
+               ,cert
+
+             };
+      std::shared_ptr<::grpc::ChannelCredentials> channel_credentials =
+        grpc::SslCredentials(grpc::SslCredentialsOptions(opts));
+      return channel_credentials;
+    }
+
+    std::unique_ptr<P4Runtime::Stub> stub_;
+    std::unique_ptr<grpc::ClientReaderWriterInterface<
+			::p4::v1::StreamMessageRequest, ::p4::v1::StreamMessageResponse>>
+			stream_channel;
 };
 
 enum ipsec_status ipsec_set_pipe(void) {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 
 	/* Set pipe only if not configured */
 	if(client.GetPipe() != IPSEC_SUCCESS) {
@@ -659,7 +743,7 @@ enum ipsec_status ipsec_tx_spd_table(enum ipsec_table_op table_op,
 				     char dst_ip_addr[16],
 				     char  mask[16],
                                      uint32_t match_priority) {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 
 	return client.P4runtimeIpsecTxSpdTable(table_op, dst_ip_addr, mask, match_priority);
 }
@@ -672,7 +756,7 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
                                                    uint32_t tunnel_id,
 						   uint8_t proto,
 						   bool tunnel_mode) {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 	return client.P4runtimeIpsecTxSaClassificationTable(table_op,
 							    dst_ip_addr,
 							    src_ip_addr,
@@ -688,7 +772,7 @@ enum ipsec_status ipsec_rx_sa_classification_table(enum ipsec_table_op table_op,
                                                    char src_ip_addr[16],
                                                    uint32_t spi,
                                                    uint32_t offloadid) {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 
 	return client.P4runtimeIpsecRxSaClassificationTable(table_op,
 							    dst_ip_addr,
@@ -705,7 +789,7 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 					      char dst_ip_mask[16],
 					      uint32_t match_priority) {
 
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 
 	return client.P4runtimeIpsecRxPostDecryptTable(table_op,
 						       crypto_offload,
@@ -723,7 +807,7 @@ enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
                                                    uint32_t proto,
                                                    char smac[16],
                                                    char dmac[16]) {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 	return client.P4runtimeIpsecOuterIpv4EncapModTable(table_op,
 							   mod_blob_ptr,
 							   src_ip_addr,
@@ -738,7 +822,7 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(enum ipsec_table_op table_op,
 						   char inner_smac[16],
 						   char inner_dmac[16])
 {
-	IPSecP4RuntimeClient client(rt_address);
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 	return client.P4runtimeIpsecOuterIpv4DecapModTable(table_op,
 							   mod_blob_ptr,
 							   inner_smac,
