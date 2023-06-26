@@ -140,12 +140,24 @@ static void expire(uint8_t protocol, uint32_t spi, host_t *dst, bool hard)
 {
 	charon->kernel->expire(charon->kernel, protocol, spi, dst, hard);
 }
+
+/**
+ * prepare the key buffer in hex string format like "29:3a:3f:00....."
+ */
 static inline int pack_key(char *src, char *dst, int len)
 {
+    const char * hex = "0123456789ABCDEF";
     int i;
 
-    for (i = 0; i < len; i++)
-        dst[i] = src[i];
+    for (i = 0; i < len - 1; i++) {
+        *dst++ = hex[(*src>>4)&0xF];
+        *dst++ = hex[(*src++)&0xF];
+        *dst++ = ':';
+
+    }
+    *dst++ = hex[(*src>>4)&0xF];
+    *dst++ = hex[(*src)&0xF];
+    *dst = 0;
 
     return 0;
 }
