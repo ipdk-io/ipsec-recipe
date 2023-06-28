@@ -36,6 +36,7 @@
 #include <google/protobuf/io/zero_copy_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <arpa/inet.h>
+#include "log_plugin.h"
 
 using grpc::ClientContext;
 using grpc::Status;
@@ -730,10 +731,10 @@ enum ipsec_status ipsec_set_pipe(void) {
 
 	/* Set pipe only if not configured */
 	if(client.GetPipe() != IPSEC_SUCCESS) {
-		std::cout << "Pipeline not configured: Configuring Pipeline\n";
+		LOGGER->Log("INFO: Pipeline not configured: Configuring Pipeline");
 		client.SetPipe();
 	} else {
-		 std::cout << "Pipeline already configured\n";
+		LOGGER->Log("INFO: Pipeline already configured");
 	}
 
 	return IPSEC_SUCCESS;

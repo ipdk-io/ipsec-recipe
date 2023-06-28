@@ -31,6 +31,7 @@
 #include "re2/re2.h"
 #include "ipsec_grpc_connect.h"
 #include "gnmi/cpp_out/gnmi/gnmi.grpc.pb.h"
+#include "log_plugin.h"
 
 using grpc::Channel;
 using grpc::Status;
@@ -255,9 +256,10 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
       if(status.ok()) {
         *spi = resp.mutable_notification(0)->mutable_update(0)->mutable_val()->uint_val();
         return true;
-      }
-      else
+      } else {
+        LOGGER->Log("ERROR: failed to get spi");
         return false;
+      }
     }
 
     bool GnmiSubOnChange(std::string path) {
@@ -266,6 +268,7 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
       if (ABSL_PREDICT_TRUE(stream_reader_writer->Write(req)))
         return true;
       else
+        LOGGER->Log("ERROR: failed to subscribe for notification");
         return false;
     }
 
@@ -349,6 +352,8 @@ enum ipsec_status ipsec_fetch_audit_log(char *cq_data, int size) {
       cq_data[value.size()] = '\0';
       return IPSEC_SUCCESS;
     }
+    LOGGER->Log("ERROR: audit log read failed");
+
     return IPSEC_FAILURE;
 }
 
