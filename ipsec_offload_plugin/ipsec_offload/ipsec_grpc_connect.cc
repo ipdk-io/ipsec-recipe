@@ -352,7 +352,6 @@ enum ipsec_status ipsec_fetch_audit_log(char *cq_data, int size) {
       cq_data[value.size()] = '\0';
       return IPSEC_SUCCESS;
     }
-    LOGGER->Log("ERROR: audit log read failed");
 
     return IPSEC_FAILURE;
 }

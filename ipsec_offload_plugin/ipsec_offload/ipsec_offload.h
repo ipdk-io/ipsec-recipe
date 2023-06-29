@@ -21,7 +21,7 @@
 #define INVALID_SA_INDEX				0x7
 #define RESERVED						0x8
 
-#define KEY_BUF_MAX 80
+#define KEY_BUF_MAX 120
 
 typedef struct ipsec_offload_t ipsec_offload_t;
 typedef struct ipsec_offload_params_t ipsec_offload_params_t;
