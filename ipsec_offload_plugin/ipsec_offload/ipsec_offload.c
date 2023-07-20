@@ -140,12 +140,24 @@ static void expire(uint8_t protocol, uint32_t spi, host_t *dst, bool hard)
 {
 	charon->kernel->expire(charon->kernel, protocol, spi, dst, hard);
 }
+
+/**
+ * prepare the key buffer in hex string format like "29:3a:3f:00....."
+ */
 static inline int pack_key(char *src, char *dst, int len)
 {
+    const char * hex = "0123456789ABCDEF";
     int i;
 
-    for (i = 0; i < len; i++)
-        dst[i] = src[i];
+    for (i = 0; i < len - 1; i++) {
+        *dst++ = hex[(*src>>4)&0xF];
+        *dst++ = hex[(*src++)&0xF];
+        *dst++ = ':';
+
+    }
+    *dst++ = hex[(*src>>4)&0xF];
+    *dst++ = hex[(*src)&0xF];
+    *dst = 0;
 
     return 0;
 }
@@ -159,7 +171,7 @@ static void get_proto_bytes(ipsec_offload_params_t *ipsec_params, char *proto_by
 						"spi:%u,\next_seq_num:%d,\nanti_replay_window_size:%d,\n"
 						"protocol_parameters:%d,\nmode:%d,\n"
 						"esp_payload {\nencryption {\nencryption_algorithm:%d,\nkey:\"%s\",\nkey_len:%d,\n}\n},\n"
-						"sa_lifetime_hard {\nbytes:%u\n},\nsa_lifetime_soft {\nbytes: %u\n}\n",
+						"sa_hard_lifetime {\nbytes:%llu\n},\nsa_soft_lifetime {\nbytes: %llu\n}\n",
 						ipsec_params->basic_params.offloadid, ipsec_params->inbound, 2,
 						ntohl(ipsec_params->basic_params.spi), ipsec_params->esn, ipsec_params->replay_window,
 						0, 0,
@@ -354,6 +366,7 @@ void *audit_log_poll(void *arg) {
 				process_expire(&cfg_data);
 			}
 		}
+		usleep(100000);
 	}
 	return NULL;
 }
