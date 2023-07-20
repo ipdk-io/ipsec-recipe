@@ -171,7 +171,7 @@ static void get_proto_bytes(ipsec_offload_params_t *ipsec_params, char *proto_by
 						"spi:%u,\next_seq_num:%d,\nanti_replay_window_size:%d,\n"
 						"protocol_parameters:%d,\nmode:%d,\n"
 						"esp_payload {\nencryption {\nencryption_algorithm:%d,\nkey:\"%s\",\nkey_len:%d,\n}\n},\n"
-						"sa_hard_lifetime {\nbytes:%u\n},\nsa_soft_lifetime {\nbytes: %u\n}\n",
+						"sa_hard_lifetime {\nbytes:%llu\n},\nsa_soft_lifetime {\nbytes: %llu\n}\n",
 						ipsec_params->basic_params.offloadid, ipsec_params->inbound, 2,
 						ntohl(ipsec_params->basic_params.spi), ipsec_params->esn, ipsec_params->replay_window,
 						0, 0,
