@@ -1,7 +1,6 @@
 # IPsec-Recipe
 The IPsec recipe is an application that enables strongSwan to use [Infrastructure Application Interface](https://ipdk.io/documentation/Interfaces/InfraApp/), specifically the P4Runtime and OpenConfig gRPCs provided by the [Networking-Recipe](https://github.com/ipdk-io/networking-recipe).
 
-
 The strongSwan plugin available in this repository implements a policy-based IPsec enablement using security policy database (SPD) and security association database (SAD). The P4Runtime client introduces a programmable IPsec flow using P4 language for the SPD and OpenConfig for SAD configurability.
 
 * IPsec recipe is validated only on Intel&reg; IPU E2100 target
@@ -61,4 +60,3 @@ Configure strongSwan
 Run StrongSwan
 
 Please refer standard strongSwan user manuals to test IPsec usecases using strongSwan.
-
