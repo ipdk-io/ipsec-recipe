@@ -366,7 +366,6 @@ void *audit_log_poll(void *arg) {
 				process_expire(&cfg_data);
 			}
 		}
-		usleep(100000);
 	}
 	return NULL;
 }
