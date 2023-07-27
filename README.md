@@ -17,8 +17,8 @@ strongSwan Integration with Inline Crypto Engine
 * strongSwan hosts (Host-A<---->Host-B) should be connected to negotiate the keys.
 * The user should follow best practices followed by opensource community for other control plane related configurations.
  
-Build and Run strongSwan on Linux
-============================================================================
+Getting Started
+===================
 
 Clone this repository and install the dependencies
 
@@ -39,7 +39,7 @@ git checkout tags/5.9.3 -b 5.9.3
 cd -
 ```
 
-Build StrongSwan
+Build strongSwan
 
 ```bash
 ./swanbuild_p4.sh -t native -o $DEPS_INSTALL --enable_grpc
