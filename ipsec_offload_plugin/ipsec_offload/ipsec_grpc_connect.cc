@@ -257,7 +257,7 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
         *spi = resp.mutable_notification(0)->mutable_update(0)->mutable_val()->uint_val();
         return true;
       } else {
-        LOGGER->Log("ERROR: failed to get spi");
+        LOGGER->Log("ERROR: GRPC status %d : %s", status.error_code(), status.error_message().c_str());
         return false;
       }
     }
@@ -324,6 +324,7 @@ enum ipsec_status ipsec_fetch_spi(uint32_t *fetched_spi) {
     if (status && *fetched_spi != INVALID_SA) {
         return IPSEC_SUCCESS;
     }
+    LOGGER->Log("ERROR: failed to get spi");
     return IPSEC_FAILURE;
 }
 

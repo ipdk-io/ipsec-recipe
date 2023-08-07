@@ -284,8 +284,8 @@ class IPSecP4RuntimeClient {
 			if(status.ok()) {
                                 return IPSEC_SUCCESS;
                         } else {
-                                std::cout << status.error_code() << ": " << status.error_message()
-                                        << std::endl;
+				LOGGER->Log("ERROR: GRPC status %d : %s", status.error_code(),
+					    status.error_message().c_str());
                                 return IPSEC_FAILURE;
                         }
 		}
