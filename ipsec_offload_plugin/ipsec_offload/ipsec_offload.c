@@ -28,9 +28,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <linux/xfrm.h>
-#ifdef ENABLEGRPC
 #include "ipsec_grpc_connect.h"
-#endif
 
 #define PROTO_BYTES_MAX 2000
 #define CONFIG_DATA_MAX 1000
@@ -172,8 +170,8 @@ static void get_proto_bytes(ipsec_offload_params_t *ipsec_params, char *proto_by
 						"protocol_parameters:%d,\nmode:%d,\n"
 						"esp_payload {\nencryption {\nencryption_algorithm:%d,\nkey:\"%s\",\nkey_len:%d,\n}\n},\n"
 						"sa_hard_lifetime {\nbytes:%llu\n},\nsa_soft_lifetime {\nbytes: %llu\n}\n",
-						ipsec_params->basic_params.offloadid, ipsec_params->inbound, 2,
-						ntohl(ipsec_params->basic_params.spi), ipsec_params->esn, ipsec_params->replay_window,
+						ipsec_params->offloadid, ipsec_params->inbound, 2,
+						ntohl(ipsec_params->spi), ipsec_params->esn, ipsec_params->replay_window,
 						0, 0,
 						ipsec_params->enc_alg, ipsec_params->key, ipsec_params->key_len,
 						ipsec_params->lifetime.bytes.life, ipsec_params->lifetime.bytes.jitter);
@@ -224,6 +222,8 @@ static void fill_ipsec_params(ipsec_offload_params_t *params,
 	else
 		params->enc_alg = 1;
 
+	params->spi = id->spi;
+	params->offloadid = (0x00FFFFFF & ntohl(params->spi));
 	params->proto = id->proto;
 	params->esn = data->esn;
 	params->inbound = data->inbound;
@@ -248,6 +248,7 @@ static void fill_basic_params(ipsec_offload_basic_params_t *base,
 	src = id->src->get_address(id->src);
 	dst =  id->dst->get_address(id->dst);
 	base->spi = id->spi;
+	base->offloadid = (0x00FFFFFF & ntohl(base->spi));
 	base->src.addr_family = id->src->get_family(id->src);
 	base->dst.addr_family = id->dst->get_family(id->dst);
 	base->src.addr_len = src.len;
@@ -366,6 +367,7 @@ void *audit_log_poll(void *arg) {
 				process_expire(&cfg_data);
 			}
 		}
+		usleep(100000);
 	}
 	return NULL;
 }
@@ -394,20 +396,37 @@ METHOD(kernel_ipsec_t, get_features, kernel_feature_t,
 #endif
 }
 
+uint32_t  gspi;
 METHOD(kernel_ipsec_t, get_spi, status_t,
 	private_ipsec_offload_t *this, host_t *src, host_t *dst,
 	uint8_t protocol, uint32_t *spi)
 {
+	this->mutex->lock(this->mutex);
+	if (gspi == 0) {
 	if(ipsec_set_pipe() == IPSEC_FAILURE)
 	{
 		DBG1(DBG_KNL, "Unable to set pipe\n");
-		return FAILED;
+//		return FAILED;
+	}
 	}
 	if (ipsec_fetch_spi(spi) == IPSEC_FAILURE)
 	{
 		DBG1(DBG_KNL, "Unable to fetch spi from server\n");
+		this->mutex->unlock(this->mutex);
 		return FAILED;
 	}
+#if 0	
+	if (gspi == 0) {
+		*spi = *spi & 0x00ffffff;
+	  //     	*spi = *spi | 0x01000000;	// TEMP: make sa_index as 0
+		gspi = 1;
+	} else if (gspi == 1) {
+		*spi = *spi & 0x00ffffff; //  
+		*spi = *spi | 0x01000000; // TEMP: make sa_index as 0
+	//	gspi = 0;
+	}
+#endif	
+	this->mutex->unlock(this->mutex);
 	DBG2(DBG_KNL, "allocated SPI %.8x", ntohl(*spi));
 	return SUCCESS;
 }
@@ -423,35 +442,39 @@ METHOD(kernel_ipsec_t, add_sa, status_t,
 	private_ipsec_offload_t *this, kernel_ipsec_sa_id_t *id,
 	kernel_ipsec_add_sa_t *data)
 {
-	ipsec_offload_params_t *ipsec_params = NULL;
-	ipsec_offload_basic_params_t *basic_params = NULL;
-	if( data->inbound == true)
-	{
-    		DBG2(DBG_KNL," :: [%s]for in_bound \n", __func__);
-		ipsec_params = &(this->in_ipsec_params);
-		basic_params = &(this->in_ipsec_params.basic_params);
-	}
-	else
-	{
-    		DBG2(DBG_KNL,":: [%s]for out_bound \n", __func__);
-		ipsec_params = &(this->out_ipsec_params);
-		basic_params = &(this->out_ipsec_params.basic_params);
-	}
-
+	this->mutex->lock(this->mutex);
+	ipsec_offload_params_t ipsec_sad_params;
+	char proto_bytes[PROTO_BYTES_MAX] = {0};
+	memset(&ipsec_sad_params,0x0,sizeof(ipsec_offload_params_t));
 	/*According to MEV ICE HAS pages ICE supports AES GCM/GMAC 128/256 algos only.
 	 * Adding a proper validation for these 2 algos. */
 
 	if((data->enc_alg != 0x14) && (data->enc_alg != 0x15))
 	{
+		this->mutex->unlock(this->mutex);
 		return FAILED;
 	}
 	if((data->enc_key.len != 20) && (data->enc_key.len != 36))
 	{
+		this->mutex->unlock(this->mutex);
 		return FAILED;
 	}
 
-	fill_basic_params(basic_params,id);
-	fill_ipsec_params(ipsec_params, id, data);
+//	fill_basic_params(basic_params,id);
+	fill_ipsec_params(&(ipsec_sad_params), id, data);
+	/* New code for 2ports*/
+	DBG1(DBG_KNL, "Going for SA add basic param offload ID %u dir =%d\n",ipsec_sad_params.offloadid,data->inbound);
+	get_proto_bytes(&(ipsec_sad_params), proto_bytes);
+	DBG2(DBG_KNL, "proto_bytes= %s", proto_bytes);
+//	explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
+	if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
+		DBG1(DBG_KNL, "SA Add Success in H/W offload-is %u direction %d \n",ipsec_sad_params.offloadid,ipsec_sad_params.inbound);
+	else
+		DBG1(DBG_KNL, "SA Add failed in H/W offload-id %u direction %d\n",ipsec_sad_params.offloadid,ipsec_sad_params.inbound);
+	
+	explicit_bzero(&(ipsec_sad_params),sizeof(ipsec_offload_params_t));
+	explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
+	this->mutex->unlock(this->mutex);
 	return SUCCESS;
 }
 
@@ -474,14 +497,11 @@ METHOD(kernel_ipsec_t, del_sa, status_t,
 	private_ipsec_offload_t *this, kernel_ipsec_sa_id_t *id,
 	kernel_ipsec_del_sa_t *data)
 {
-#if 0
-	ipsec_offload_basic_params_t *basic_params = NULL;
-	basic_params = &(this->in_ipsec_params.basic_params);
-
-	memset(basic_params,0x0,sizeof(ipsec_offload_basic_params_t));
-
-	fill_basic_params(basic_params,id);
-#endif
+	/*SAD Table Delete is covered in policy delete
+	 * For MEV We need SA index and direction for deleting an entry.
+	 * We can't derive the direction in this API
+	 * Hence covering the SAD delete in del_policy
+	 */
 	return SUCCESS;
 }
 
@@ -498,86 +518,64 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 {
 	int  err;
 	char proto_bytes[PROTO_BYTES_MAX] = {0};
-	ipsec_offload_basic_params_t *basic_params = NULL;
-	ipsec_offload_params_t *ipsec_params = NULL;
 	char mask[16];
 	char mac_mask[16];
 	uint32_t spi;
 	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
 	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+	chunk_t ts_src = chunk_empty;
+	chunk_t ts_dst = chunk_empty;
+	char from[IPV6_LEN] = {0};
+	char to[IPV6_LEN] = {0};
+	uint32_t temp_offloadid ;
 
-	/* The policy comes as Rx followed by Tx,
-	 * And always (SA ADD,Policy ADD),(SA Delete,Policy Delete)
-	 * are called together for a single session
-	 * for eg if we have a session for TCP, a session for UDP,
-	 * a session for icmp together.
-	 * SA and policy ADD for TCP will be called 1st
-	 * SA and Policy ADD for UDP will called 2nd
-	 * SA and Policy ADD for ICMP will be called 3rd
-	 */
-	/*
-	 * In the strongSwan ipsec kernel interface it makes
-	 * all the SA add policy Add APIs part of a single object.
-	 * So kernel will call all the APIs of that object together
-	 */
+	this->mutex->lock(this->mutex);
 	if(id->dir == POLICY_IN)
 	{
-		ipsec_offload_policy_t *policy = &(this->in_ipsec_params.policy);
-		fill_ipsec_policies(policy, id, data);
-		basic_params = &(this->in_ipsec_params.basic_params);
-		basic_params->offloadid = (0x00FFFFFF & ntohl(policy->spi));
-		basic_params->config_done= 1;
-		DBG2(DBG_KNL,"in if inbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->in_ipsec_params.basic_params.spi);
-
-	}
-	else if(id->dir == POLICY_OUT)
-	{
-		ipsec_offload_policy_t *policy = &(this->out_ipsec_params.policy);
-		fill_ipsec_policies(policy, id, data);
-		basic_params = &(this->out_ipsec_params.basic_params);
-		/* Tx SA index will be same as Rx SA index*/
-		basic_params->offloadid = this->in_ipsec_params.basic_params.offloadid;
-		basic_params->config_done=1;
-		DBG2(DBG_KNL,"in else outbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->out_ipsec_params.basic_params.spi);
-
-	}
-	else
-	{
-		DBG1(DBG_KNL, "Inline_crypto_ipsec doesn't support forward policies");
-		//return FAILED;
-	}
-	if((this->in_ipsec_params.basic_params.config_done == 1) &&
-		(this->out_ipsec_params.basic_params.config_done == 1))
-	{
-		/*
-		 * Now both the Tx and Rx policies are installed.
-		 * Write the entire structure to the socket.
-		 *
-		 * TODO: While integration with P4SDE after writing to the socket we need to wait for a CQ response.
-		 * Depending on the response return from here.
-		 */
-		DBG2(DBG_KNL,"inbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->in_ipsec_params.basic_params.spi);
-		spi = ntohl(this->in_ipsec_params.basic_params.spi);
-
-#ifdef ENABLEGRPC
-		ipsec_params = &(this->in_ipsec_params);
-
+		//Copy Destination TS
+		ts_src = id->dst_ts->get_to_address(id->src_ts);
+		ts_dst = id->src_ts->get_to_address(id->dst_ts);
+		memset(&(from),0x0,IPV6_LEN);
+		memset(&(to),0x0,IPV6_LEN);
+		memcpy(&(from),ts_src.ptr,ts_src.len);
+		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		DBG2(DBG_KNL," source %s len %d",ts_src.ptr,ts_src.len);
+		DBG2(DBG_KNL," destination %s len %d",ts_dst.ptr,ts_dst.len);
 		memset(mask, 0xFF, sizeof(uint32_t));
 		memset(mac_mask, 0xFF, sizeof(mac_mask));
+		DBG2(DBG_KNL," AAA inbound Policy Add ::saddr=%s daddr=%s spi=0x%x offloadid=0x%x \n",from,to, data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)));
+		DBG2(DBG_KNL,"destination");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",to[a]);
+		}
+		DBG2(DBG_KNL,"source");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",from[a]);
+		}
+		DBG2(DBG_KNL,"RX data->sa->esp.spi=0x%x",data->sa->esp.spi);
+		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+#ifdef CHANGE_BYTE_ORDER
+		temp_offloadid = temp_offloadid <<16;
+		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+#endif		
+				
+			 DBG2(DBG_KNL,"temp_offloadid= %d",temp_offloadid);
 		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_ADD,
-						       ipsec_params->policy.dst_ts.from,
-						       ipsec_params->policy.src_ts.from,
-						       spi, /* need to ensure host endiannes*/
-						       spi & 0x00FFFFFF);
+						       to,
+						       from,
+						        ntohl(data->sa->esp.spi), /* need to ensure host endiannes*/
+						        temp_offloadid/*(0x00FFFFFF & ntohl(data->sa->esp.spi))*//*spi & 0x00FFFFFF*/);
 		if(err != IPSEC_SUCCESS)
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_sa_classification_table: add entry failed err_code[ %d]", err);
 
-		if (ipsec_params->policy.mode == MODE_TUNNEL)
+		if (data->sa->mode == MODE_TUNNEL)
 		{
 
 			err = ipsec_outer_ipv4_decap_mod_table(
 					IPSEC_TABLE_ADD,
-					ipsec_params->basic_params.spi & 0x00FFFFFF,
+					temp_offloadid,
 					inner_smac,
 					inner_dmac);
 			if(err != IPSEC_SUCCESS)
@@ -586,91 +584,85 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 					      IPSEC_TABLE_ADD,
 					      1,
 					      1,
-					      spi & 0x00FFFFFF,
-					      ipsec_params->policy.dst_ts.from,
+					      temp_offloadid,
+					      from,
 					      mac_mask,
 					      1);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: add entry failed err_code[ %d]", err);
 		}
 
-		get_proto_bytes(ipsec_params, proto_bytes);
-		explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
-		if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "inbound SA Add Success\n");
-		else
-			DBG1(DBG_KNL, "inbound SA Add failed\n");
-
-		explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->in_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for inbound SA/Policy Add  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(2);
-#endif
-		DBG2(DBG_KNL,"outbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->out_ipsec_params.basic_params.spi);
-#ifdef ENABLEGRPC
-		ipsec_params = &(this->out_ipsec_params);
+	}
+	else if(id->dir == POLICY_OUT)
+	{
+		//Copy Destination TS
+		ts_src = id->dst_ts->get_from_address(id->dst_ts);
+		ts_dst = id->src_ts->get_from_address(id->src_ts);
+		memset(&(from),0x0,IPV6_LEN);
+		memset(&(to),0x0,IPV6_LEN);
+		memcpy(&(from),ts_src.ptr,ts_src.len);
+		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		DBG2(DBG_KNL,"AAA outbound SA/Policy Add :: saddr=%s, daddr=%s, spi=0x%x, offloadid=0x%x protocol=%d\n",from,to,data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)),id->src_ts->get_protocol(id->src_ts));
+		DBG2(DBG_KNL,"destination");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",to[a]);
+		}
+		DBG2(DBG_KNL,"source");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",from[a]);
+		}
 
 		memset(mask, 0xFF, sizeof(uint32_t));
+		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+#ifdef CHANGE_BYTE_ORDER		
+		temp_offloadid = temp_offloadid<<16;
+		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+#endif		
 
-		err = ipsec_tx_spd_table(IPSEC_TABLE_ADD, ipsec_params->policy.dst_ts.from, mask, 1);
+			 DBG2(DBG_KNL,"temp_offloadid= 0x%x",temp_offloadid);
+		err = ipsec_tx_spd_table(IPSEC_TABLE_ADD, from, mask, 1);
 		if(err == IPSEC_FAILURE)
 		{
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: add entry failed");
 		}
 		DBG2(DBG_KNL, "SPI [%x]", spi & 0x00FFFFFF);
 		err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
-						       ipsec_params->policy.dst_ts.from,
-						       ipsec_params->policy.src_ts.from,
+						       from,
+						       to,
 						       1,
-						       spi & 0x00FFFFFF, /* need to ensure host endiannes*/
-						       spi & 0x00FFFFFF,
-						       ipsec_params->proto,
-						       ipsec_params->policy.mode == MODE_TUNNEL);
+						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),i*//*spi & 0x00FFFFFF*/ /* need to ensure host endiannes*/
+						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),*//*spi & 0x00FFFFFF*/
+						       id->src_ts->get_protocol(id->src_ts),
+						       data->sa->mode == MODE_TUNNEL);
 		if(err == IPSEC_FAILURE)
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: add entry failed");
 
-		if (ipsec_params->policy.mode == MODE_TUNNEL)
+		if (data->sa->mode == MODE_TUNNEL)
 		{
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
 							       spi & 0x00FFFFFF,
-							       ipsec_params->basic_params.src.addr,
-							       ipsec_params->basic_params.dst.addr,
-							       ipsec_params->proto,
+							       from,
+							       to,
+							       id->src_ts->get_protocol(id->src_ts),
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod: add entry failed err_code[ %d]", err);
 
 		}
-
-		get_proto_bytes(ipsec_params, proto_bytes);
-		explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
-		if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "outbound SA Add Success\n");
-		else
-			DBG1(DBG_KNL, "outound SA Add failed\n");
-		 explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
-
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->out_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for outbound SA/Policy Add  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(2);
-#endif
-		this->in_ipsec_params.basic_params.config_done=0;
-		this->out_ipsec_params.basic_params.config_done=0;
 	}
+	else
+	{
+		DBG1(DBG_KNL, "Inline_crypto_ipsec doesn't support forward policies");
+		//return FAILED;
+	}
+	
+	if(id->dir == POLICY_IN)
+	DBG1(DBG_KNL, "AAA inbound policy add success returning SUCCESS");
+	if(id->dir == POLICY_OUT)
+	DBG1(DBG_KNL, "AAA outbound policy add success returning SUCCESS");
+	this->mutex->unlock(this->mutex);
 	return SUCCESS;
 }
 
@@ -686,176 +678,124 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 	kernel_ipsec_manage_policy_t *data)
 {
 	int err;
-	ipsec_offload_basic_params_t *basic_params = NULL;
-	ipsec_offload_params_t *ipsec_params = NULL;
 	char mask[16];
 	char mac_mask[16];
 	uint32_t spi;
 	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
 	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+	chunk_t ts_src = chunk_empty;
+	chunk_t ts_dst = chunk_empty;
+	char from[IPV6_LEN] = {0};
+	char to[IPV6_LEN] = {0};
+	uint32_t temp_offloadid ;
 
 	DBG2(DBG_KNL, "Del Policy API called with dir=%d", id->dir);
 
+	this->mutex->lock(this->mutex);
 	if(id->dir == POLICY_IN)
 	{
-		ipsec_offload_policy_t *policy = &(this->in_ipsec_params.policy);
-		basic_params = &(this->in_ipsec_params.basic_params);
-		fill_ipsec_policies(policy, id, data);
-		basic_params->offloadid = (0x00FFFFFF & ntohl(policy->spi));
-		basic_params->spi =  policy->spi;
-		this->in_ipsec_params.inbound = true;
-		basic_params->config_done = 1;
+		//Copy Destination TS
+		ts_src = id->dst_ts->get_to_address(id->src_ts);
+		ts_dst = id->src_ts->get_to_address(id->dst_ts);
+		memset(&(from),0x0,IPV6_LEN);
+		memset(&(to),0x0,IPV6_LEN);
+		memcpy(&(from),ts_src.ptr,ts_src.len);
+		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		memset(mask, 0xFF, sizeof(uint32_t));
+		memset(mac_mask, 0xFF, sizeof(mac_mask));
+		DBG2(DBG_KNL," source %s len %d",ts_src.ptr,ts_src.len);
+		DBG2(DBG_KNL," destination %s len %d",ts_dst.ptr,ts_dst.len);
+		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+#ifdef CHANGE_BYTE_ORDER
+		temp_offloadid = temp_offloadid <<16;
+		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+#endif		
+
+			 DBG2(DBG_KNL,"temp_offloadid= %d",temp_offloadid);
+		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_DEL,
+						       to,
+						       from,
+						        ntohl(data->sa->esp.spi), /* need to ensure host endiannes*/
+						        temp_offloadid/*(0x00FFFFFF & ntohl(data->sa->esp.spi))*//*spi & 0x00FFFFFF*/);
+		if(err != IPSEC_SUCCESS)
+			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_sa_classification_table: delete entry failed err_code[ %d]", err);
+
+		if (data->sa->mode == MODE_TUNNEL)
+		{
+			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_smac, inner_dmac);
+			if(err != IPSEC_SUCCESS)
+				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: delete entry failed err_code[ %d]", err);
+			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, temp_offloadid, from, mac_mask, 1);
+			if(err != IPSEC_SUCCESS)
+				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: delete entry failed err_code[ %d]", err);
+		}
+		if (ipsec_sa_del(temp_offloadid,  id->dir) != IPSEC_SUCCESS)
+		{
+			DBG1(DBG_KNL, " Inbound SA Del Failed index %u dir %d\n", temp_offloadid, id->dir);
+		}	
 	}
   else if(id->dir == POLICY_OUT)
 	{
-		ipsec_offload_policy_t *policy = &(this->out_ipsec_params.policy);
-		basic_params = &(this->out_ipsec_params.basic_params);
-		/* Tx SA index will be same as Rx SA index*/
-		basic_params->offloadid = this->in_ipsec_params.basic_params.offloadid;
-		fill_ipsec_policies(policy, id, data);
-		basic_params->spi =  policy->spi;
-		this->out_ipsec_params.inbound = false;
-		basic_params->config_done = 1;
-	}
-	else
-	{
-		DBG1(DBG_KNL, "Inline_crypto_ipsec doesn't support forward policies");
-		return FAILED;
-	}
-	if((this->in_ipsec_params.basic_params.config_done == 1) &&
-		(this->out_ipsec_params.basic_params.config_done == 1))
-	{
-		DBG2(DBG_KNL, "####### in spi=%x\n", this->in_ipsec_params.basic_params.spi);
-		DBG2(DBG_KNL, "####### out spi=%x\n", this->out_ipsec_params.basic_params.spi);
-		DBG2(DBG_KNL, "Del Policy API called with config done");
-		/*
-		 * Now the Tx policy is installed.
-		 * Write the entire structure to the socket.
-		 *
-		 * TODO: While integration with P4SDE after writing to the socket we need to wait for a CQ response.
-		 * Depending on the response return from here.
-		 */
-		basic_params = &(this->out_ipsec_params.basic_params);
-		basic_params->offloadid = this->in_ipsec_params.basic_params.offloadid;
-
-#ifdef ENABLEGRPC
-		ipsec_params = &(this->in_ipsec_params);
-
-		spi = ntohl(this->in_ipsec_params.basic_params.spi);
-		memset(mask, 0xFF, sizeof(uint32_t));
-		memset(mac_mask, 0xFF, sizeof(mac_mask));
-
-		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_DEL,
-						       ipsec_params->policy.dst_ts.from,
-						       ipsec_params->policy.src_ts.from,
-						       spi, /* need to ensure host endiannes*/
-						       spi & 0x00FFFFFF);
-		if(err != IPSEC_SUCCESS)
-			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_sa_classification_table: add entry failed err_code[ %d]", err);
-
-		if (ipsec_params->policy.mode == MODE_TUNNEL)
-		{
-
-			err = ipsec_outer_ipv4_decap_mod_table(
-					IPSEC_TABLE_DEL,
-					ipsec_params->basic_params.spi & 0x00FFFFFF,
-					inner_smac,
-					inner_dmac);
-			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: add entry failed err_code[ %d]", err);
-			err = ipsec_rx_post_decrypt_table(
-					      IPSEC_TABLE_DEL,
-					      1,
-					      1,
-					      spi & 0x00FFFFFF,
-					      ipsec_params->policy.dst_ts.from,
-					      mac_mask,
-					      1);
-			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: add entry failed err_code[ %d]", err);
-		}
-
-		/*Write the buffer to the grpc channel*/
-		DBG2(DBG_KNL, "Del Policy API called with sending inparams");
-		if (ipsec_sa_del(basic_params->offloadid,  ipsec_params->inbound) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "inbound SA Del Success\n");
-		else
-			DBG1(DBG_KNL, "inbound SA Del Failed\n");
-
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->in_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for inbound SA/Policy Del  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(1);
-		err = ipsec_sa_write(this->socket , (char* )&(this->out_ipsec_params),sizeof(ipsec_offload_params_t));
-#else
-		ipsec_params = &(this->out_ipsec_params);
+		//Copy Destination TS
+		ts_src = id->dst_ts->get_from_address(id->dst_ts);
+		ts_dst = id->src_ts->get_from_address(id->src_ts);
+		memset(&(from),0x0,IPV6_LEN);
+		memset(&(to),0x0,IPV6_LEN);
+		memcpy(&(from),ts_src.ptr,ts_src.len);
+		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		DBG2(DBG_KNL,"AAA outbound SA/Policy Add :: saddr=%s, daddr=%s, spi=0x%x, offloadid=0x%x protocol=%d\n",from,to,data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)),id->src_ts->get_protocol(id->src_ts));
+		DBG2(DBG_KNL,"destination");
 
 		memset(mask, 0xFF, sizeof(uint32_t));
+		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+#ifdef CHANGE_BYTE_ORDER
+		temp_offloadid = temp_offloadid<<16;
+		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+#endif		
+			
 
-		err = ipsec_tx_spd_table(IPSEC_TABLE_DEL, ipsec_params->policy.dst_ts.from, mask, 1);
+			 DBG2(DBG_KNL,"temp_offloadid= 0x%x",temp_offloadid);
+		err = ipsec_tx_spd_table(IPSEC_TABLE_DEL, from, mask, 1);
 		if(err == IPSEC_FAILURE)
 		{
-			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: add entry failed");
+			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: del entry failed");
 		}
 		DBG2(DBG_KNL, "SPI [%x]", spi & 0x00FFFFFF);
 		err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
-						       ipsec_params->policy.dst_ts.from,
-						       ipsec_params->policy.src_ts.from,
+						       from,
+						       to,
 						       1,
-						       spi & 0x00FFFFFF, /* need to ensure host endiannes*/
-						       spi & 0x00FFFFFF,
-						       ipsec_params->proto,
-						       ipsec_params->policy.mode == MODE_TUNNEL);
+						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),i*//*spi & 0x00FFFFFF*/ /* need to ensure host endiannes*/
+						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),*//*spi & 0x00FFFFFF*/
+						       id->src_ts->get_protocol(id->src_ts),
+						       data->sa->mode == MODE_TUNNEL);
 		if(err == IPSEC_FAILURE)
-			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: add entry failed");
-		if (ipsec_params->policy.mode == MODE_TUNNEL)
+			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: delete entry failed");
+		if (data->sa->mode == MODE_TUNNEL)
 		{
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
 							       spi & 0x00FFFFFF,
-							       ipsec_params->basic_params.src.addr,
-							       ipsec_params->basic_params.dst.addr,
-							       ipsec_params->proto,
+							       from,
+							       to,
+							       id->src_ts->get_protocol(id->src_ts),
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod: add entry failed err_code[ %d]", err);
+				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod: delete entry failed err_code[ %d]", err);
 
 		}
-
-		/*Write the buffer to the grpc channel*/
-		DBG2(DBG_KNL, "Del Policy API called with sending outparams");
-		if (ipsec_sa_del(basic_params->offloadid,  ipsec_params->inbound) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "outbound SA Del Success\n");
-		else
-			DBG1(DBG_KNL, "outbound SA Del Failed\n");
-
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for outbound SA/Policy Del  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-
-		this->mutex->lock(this->mutex);
+		if (ipsec_sa_del(temp_offloadid,  id->dir) != IPSEC_SUCCESS)
+		{
+			DBG1(DBG_KNL, " Outbound SA Del Failed index %u dir %d\n", temp_offloadid, id->dir);
+		}	
+	}
+	else
+	{
 		this->mutex->unlock(this->mutex);
-
-		/* Once we receive the response for the config requests
-		*  We need to clear the structures carring SA params
-		*  in private_ipsec_offload_t
-		*/
-	//	sleep(2);
-		memset(&(this->in_ipsec_params),0x0,sizeof(ipsec_offload_params_t));
-		memset(&(this->out_ipsec_params),0x0,sizeof(ipsec_offload_params_t));
-		this->in_ipsec_params.basic_params.config_done=0;
-		this->out_ipsec_params.basic_params.config_done=0;
-
+		DBG1(DBG_KNL, "Inline_crypto_ipsec doesn't support forward policies");
+		return FAILED;
 	}
 
+	this->mutex->unlock(this->mutex);
 	return SUCCESS;
 }
 

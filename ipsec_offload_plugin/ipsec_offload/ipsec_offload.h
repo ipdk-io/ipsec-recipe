@@ -23,6 +23,8 @@
 
 #define KEY_BUF_MAX 120
 
+//#define CHANGE_BYTE_ORDER
+
 typedef struct ipsec_offload_t ipsec_offload_t;
 typedef struct ipsec_offload_params_t ipsec_offload_params_t;
 typedef struct ipsec_offload_basic_params_t ipsec_offload_basic_params_t;
@@ -125,8 +127,8 @@ struct ipsec_offload_policy_t {
 };
 
 struct ipsec_offload_params_t {
-	ipsec_offload_basic_params_t	basic_params;
-	ipsec_offload_policy_t		policy;
+	uint32_t	spi;
+	uint32_t	offloadid; //This SA INDEX is the lower 3 bytes of RX SPI.
 	uint32_t	replay_window;
 	uint32_t	salt;
 	uint16_t	enc_alg;
