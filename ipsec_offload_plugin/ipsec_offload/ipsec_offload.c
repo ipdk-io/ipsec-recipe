@@ -631,7 +631,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 						       1,
 						       spi & 0x00FFFFFF, /* need to ensure host endiannes*/
 						       spi & 0x00FFFFFF,
-						       ipsec_params->proto,
+						       ipsec_params->policy.src_ts.protocol,
 						       ipsec_params->policy.mode == MODE_TUNNEL);
 		if(err == IPSEC_FAILURE)
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: add entry failed");

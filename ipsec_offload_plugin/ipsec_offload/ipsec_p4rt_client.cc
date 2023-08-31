@@ -388,7 +388,7 @@ class IPSecP4RuntimeClient {
 			WriteResponse reply;
 			ClientContext context;
 			p4::v1::Action_Param *params;
-	  		std::string protocol={6};
+			std::string protocol={0};
 	  		std::string offload = {1};
 			table_entry.set_table_id(TX_SA_CLASSIFICATION_TABLE_ID);
 
@@ -409,8 +409,7 @@ class IPSecP4RuntimeClient {
 			field_match = table_entry.add_match();
 			field_match->set_field_id(4);
 
-			/* Nee to root cause and fix properly */
-			protocol[0] = 6;
+			protocol[0] = proto;
 			field_match->mutable_exact()->set_value(protocol);
 
 			if (table_op == IPSEC_TABLE_ADD) {
@@ -600,7 +599,7 @@ class IPSecP4RuntimeClient {
 			WriteResponse reply;
 			ClientContext context;
 			p4::v1::Action_Param *params;
-	  		std::string protocol={6};
+			std::string protocol={0};
 	  		std::string offload = {1};
 
 			STREAM_CHANNEL();
@@ -609,6 +608,7 @@ class IPSecP4RuntimeClient {
 			field_match->set_field_id(1);
 			field_match->mutable_exact()->set_value((char*)&mod_blob_ptr);
 
+			protocol[0] = proto;
 			if (table_op == IPSEC_TABLE_ADD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(ENCAP_OUTER_IPV4_MOD_ACTION_ID);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
