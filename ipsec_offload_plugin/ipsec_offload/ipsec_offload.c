@@ -401,6 +401,7 @@ METHOD(kernel_ipsec_t, get_spi, status_t,
 	uint8_t protocol, uint32_t *spi)
 {
 	this->mutex->lock(this->mutex);
+	uint32_t temp_spi;
 	if (gspi == 0) {
 	if(ipsec_set_pipe() == IPSEC_FAILURE)
 	{
@@ -414,7 +415,8 @@ METHOD(kernel_ipsec_t, get_spi, status_t,
 		this->mutex->unlock(this->mutex);
 		return FAILED;
 	}
-#if 0	
+	temp_spi = *spi;
+//#if 0	
 	if (gspi == 0) {
 		*spi = *spi & 0x00ffffff;
 	  //     	*spi = *spi | 0x01000000;	// TEMP: make sa_index as 0
@@ -424,7 +426,8 @@ METHOD(kernel_ipsec_t, get_spi, status_t,
 		*spi = *spi | 0x01000000; // TEMP: make sa_index as 0
 	//	gspi = 0;
 	}
-#endif	
+//#endif
+	*spi = temp_spi;	
 	this->mutex->unlock(this->mutex);
 	DBG2(DBG_KNL, "allocated SPI %.8x", ntohl(*spi));
 	return SUCCESS;
@@ -532,8 +535,8 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	if(id->dir == POLICY_IN)
 	{
 		//Copy Destination TS
-		ts_src = id->dst_ts->get_to_address(id->src_ts);
-		ts_dst = id->src_ts->get_to_address(id->dst_ts);
+		ts_src = id->src_ts->get_to_address(id->src_ts);
+		ts_dst = id->dst_ts->get_to_address(id->dst_ts);
 		memset(&(from),0x0,IPV6_LEN);
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
@@ -543,12 +546,12 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 		memset(mask, 0xFF, sizeof(uint32_t));
 		memset(mac_mask, 0xFF, sizeof(mac_mask));
 		DBG2(DBG_KNL," AAA inbound Policy Add ::saddr=%s daddr=%s spi=0x%x offloadid=0x%x \n",from,to, data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)));
-		DBG2(DBG_KNL,"destination");
+		DBG2(DBG_KNL,"to");
 		for(int a=0;a<ts_dst.len;a++)
 		{
 			DBG2(DBG_KNL,"%x",to[a]);
 		}
-		DBG2(DBG_KNL,"source");
+		DBG2(DBG_KNL,"from");
 		for(int a=0;a<ts_dst.len;a++)
 		{
 			DBG2(DBG_KNL,"%x",from[a]);
@@ -584,7 +587,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 					      1,
 					      1,
 					      temp_offloadid,
-					      from,
+					      to,
 					      mac_mask,
 					      1);
 			if(err != IPSEC_SUCCESS)
@@ -595,19 +598,19 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	else if(id->dir == POLICY_OUT)
 	{
 		//Copy Destination TS
-		ts_src = id->dst_ts->get_from_address(id->dst_ts);
-		ts_dst = id->src_ts->get_from_address(id->src_ts);
+		ts_src = id->src_ts->get_from_address(id->dst_ts);
+		ts_dst = id->dst_ts->get_from_address(id->src_ts);
 		memset(&(from),0x0,IPV6_LEN);
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
 		memcpy(&(to),ts_dst.ptr,ts_dst.len);
 		DBG2(DBG_KNL,"AAA outbound SA/Policy Add :: saddr=%s, daddr=%s, spi=0x%x, offloadid=0x%x protocol=%d\n",from,to,data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)),id->src_ts->get_protocol(id->src_ts));
-		DBG2(DBG_KNL,"destination");
+		DBG2(DBG_KNL,"to");
 		for(int a=0;a<ts_dst.len;a++)
 		{
 			DBG2(DBG_KNL,"%x",to[a]);
 		}
-		DBG2(DBG_KNL,"source");
+		DBG2(DBG_KNL,"to");
 		for(int a=0;a<ts_dst.len;a++)
 		{
 			DBG2(DBG_KNL,"%x",from[a]);
@@ -694,8 +697,8 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 	if(id->dir == POLICY_IN)
 	{
 		//Copy Destination TS
-		ts_src = id->dst_ts->get_to_address(id->src_ts);
-		ts_dst = id->src_ts->get_to_address(id->dst_ts);
+		ts_src = id->src_ts->get_to_address(id->src_ts);
+		ts_dst = id->dst_ts->get_to_address(id->dst_ts);
 		memset(&(from),0x0,IPV6_LEN);
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
@@ -705,6 +708,16 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		DBG2(DBG_KNL," source %s len %d",ts_src.ptr,ts_src.len);
 		DBG2(DBG_KNL," destination %s len %d",ts_dst.ptr,ts_dst.len);
 		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+		DBG2(DBG_KNL,"to");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",to[a]);
+		}
+		DBG2(DBG_KNL,"from");
+		for(int a=0;a<ts_dst.len;a++)
+		{
+			DBG2(DBG_KNL,"%x",from[a]);
+		}
 #ifdef CHANGE_BYTE_ORDER
 		temp_offloadid = temp_offloadid <<16;
 		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
@@ -724,7 +737,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: delete entry failed err_code[ %d]", err);
-			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, temp_offloadid, from, mac_mask, 1);
+			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, temp_offloadid, to, mac_mask, 1);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: delete entry failed err_code[ %d]", err);
 		}
@@ -736,8 +749,8 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
   else if(id->dir == POLICY_OUT)
 	{
 		//Copy Destination TS
-		ts_src = id->dst_ts->get_from_address(id->dst_ts);
-		ts_dst = id->src_ts->get_from_address(id->src_ts);
+		ts_src = id->src_ts->get_from_address(id->dst_ts);
+		ts_dst = id->dst_ts->get_from_address(id->src_ts);
 		memset(&(from),0x0,IPV6_LEN);
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
@@ -753,6 +766,16 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 #endif		
 			
 
+			 DBG2(DBG_KNL,"to");
+			 for(int a=0;a<ts_dst.len;a++)
+			 {
+				 DBG2(DBG_KNL,"%x",to[a]);
+			 }
+			 DBG2(DBG_KNL,"from");
+			 for(int a=0;a<ts_dst.len;a++)
+			 {
+				 DBG2(DBG_KNL,"%x",from[a]);
+			 }
 			 DBG2(DBG_KNL,"temp_offloadid= 0x%x",temp_offloadid);
 		err = ipsec_tx_spd_table(IPSEC_TABLE_DEL, from, mask, 1);
 		if(err == IPSEC_FAILURE)
