@@ -49,7 +49,7 @@ After successful build, files will be installed in `./output_strongswan` directo
 
 Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/es2k/compiling-p4-programs.md) for details.
 
-Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/installing-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
+Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/security/using-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
 
 Configure strongSwan
 * Review the server IP addresses, client certificate filename, client key filename, and client CA filename in `ipsec_offload_plugin/ipsec_offload.conf` file.
