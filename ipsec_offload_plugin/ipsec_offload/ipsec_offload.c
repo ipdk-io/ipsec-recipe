@@ -35,8 +35,9 @@
 #define PROTO_BYTES_MAX 2000
 #define CONFIG_DATA_MAX 1000
 
+static bool subscribe_audit_done;
+
 typedef struct private_ipsec_offload_t private_ipsec_offload_t;
-#ifdef ENABLEGRPC
 enum ipsec_status gnmi_init();
 enum ipsec_status p4rt_init();
 enum ipsec_status ipsec_fetch_spi(uint32_t *);
@@ -81,7 +82,6 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 						uint32_t mod_blob_ptr,
 						char inner_smac[16],
 						char inner_dmac[16]);
-#endif
 
 #define SPI_MAX_LIMIT 0xffffff
 struct private_ipsec_offload_t {
@@ -131,7 +131,6 @@ struct private_ipsec_offload_t {
 	 */
 	ipsec_offload_params_t in_ipsec_params;
 };
-
 
 /**
  * Expiration callback
@@ -355,6 +354,14 @@ void *audit_log_poll(void *arg) {
 			pthread_exit(NULL);
 		}
 
+		/* TODO: initialize auto config is enabled by ipsec_fetch_spi()
+		 * enable it using ipsec_subscribe_audit_log() and remove this check.
+		 */
+		if (!subscribe_audit_done) {
+			sleep(1);
+			continue;
+		}
+
 		int ret = ipsec_fetch_audit_log(config_data_buf, CONFIG_DATA_MAX);
 
 		if(ret != IPSEC_FAILURE)
@@ -409,6 +416,8 @@ METHOD(kernel_ipsec_t, get_spi, status_t,
 		return FAILED;
 	}
 	DBG2(DBG_KNL, "allocated SPI %.8x", ntohl(*spi));
+	subscribe_audit_done = 1;
+
 	return SUCCESS;
 }
 
@@ -562,6 +571,16 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 #ifdef ENABLEGRPC
 		ipsec_params = &(this->in_ipsec_params);
 
+		get_proto_bytes(ipsec_params, proto_bytes);
+		if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
+			DBG1(DBG_KNL, "inbound SA Add Success\n");
+		else
+			DBG1(DBG_KNL, "inbound SA Add failed\n");
+
+		DBG2(DBG_KNL,"TEMP :: inbound protobytes=%s\n", proto_bytes);
+		explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
+		DBG2(DBG_KNL,"outbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->out_ipsec_params.basic_params.spi);
+
 		memset(mask, 0xFF, sizeof(uint32_t));
 		memset(mac_mask, 0xFF, sizeof(mac_mask));
 		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_ADD,
@@ -593,29 +612,18 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: add entry failed err_code[ %d]", err);
 		}
+		explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
+
+		ipsec_params = &(this->out_ipsec_params);
 
 		get_proto_bytes(ipsec_params, proto_bytes);
-		explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
 		if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "inbound SA Add Success\n");
+			DBG1(DBG_KNL, "outbound SA Add Success\n");
 		else
-			DBG1(DBG_KNL, "inbound SA Add failed\n");
+			DBG1(DBG_KNL, "outound SA Add failed\n");
 
-		explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->in_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for inbound SA/Policy Add  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(2);
-#endif
-		DBG2(DBG_KNL,"outbound SA/Policy Add  :: [%s]spi=0x%x \n", __func__,this->out_ipsec_params.basic_params.spi);
-#ifdef ENABLEGRPC
-		ipsec_params = &(this->out_ipsec_params);
+		DBG2(DBG_KNL,"TEMP :: outbound protobytes=%s\n", proto_bytes);
+		 explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
 
 		memset(mask, 0xFF, sizeof(uint32_t));
 
@@ -648,25 +656,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod: add entry failed err_code[ %d]", err);
 
 		}
-
-		get_proto_bytes(ipsec_params, proto_bytes);
 		explicit_bzero(ipsec_params, sizeof(ipsec_offload_params_t));
-		if (ipsec_sa_add(proto_bytes) == IPSEC_SUCCESS)
-			DBG1(DBG_KNL, "outbound SA Add Success\n");
-		else
-			DBG1(DBG_KNL, "outound SA Add failed\n");
-		 explicit_bzero(proto_bytes, PROTO_BYTES_MAX);
-
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->out_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for outbound SA/Policy Add  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(2);
 #endif
 		this->in_ipsec_params.basic_params.config_done=0;
 		this->out_ipsec_params.basic_params.config_done=0;
@@ -782,18 +772,6 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		else
 			DBG1(DBG_KNL, "inbound SA Del Failed\n");
 
-#else
-		err = ipsec_sa_write(this->socket , (char* )&(this->in_ipsec_params),sizeof(ipsec_offload_params_t));
-#endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for inbound SA/Policy Del  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-#ifndef ENABLEGRPC
-		sleep(1);
-		err = ipsec_sa_write(this->socket , (char* )&(this->out_ipsec_params),sizeof(ipsec_offload_params_t));
-#else
 		ipsec_params = &(this->out_ipsec_params);
 
 		memset(mask, 0xFF, sizeof(uint32_t));
@@ -810,7 +788,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 						       1,
 						       spi & 0x00FFFFFF, /* need to ensure host endiannes*/
 						       spi & 0x00FFFFFF,
-						       ipsec_params->proto,
+						       ipsec_params->policy.src_ts.protocol,
 						       ipsec_params->policy.mode == MODE_TUNNEL);
 		if(err == IPSEC_FAILURE)
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: add entry failed");
@@ -835,12 +813,6 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			DBG1(DBG_KNL, "outbound SA Del Failed\n");
 
 #endif
-//		if(err == IPSEC_FAILURE)
-//		{
-//			DBG2(DBG_KNL,"Inline_crypto_ipsec  ipsec_sa_write failed for outbound SA/Policy Del  :: [%s] \n", __func__);
-//			return FAILED;
-//		}
-
 		this->mutex->lock(this->mutex);
 		this->mutex->unlock(this->mutex);
 
@@ -848,7 +820,6 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		*  We need to clear the structures carring SA params
 		*  in private_ipsec_offload_t
 		*/
-	//	sleep(2);
 		memset(&(this->in_ipsec_params),0x0,sizeof(ipsec_offload_params_t));
 		memset(&(this->out_ipsec_params),0x0,sizeof(ipsec_offload_params_t));
 		this->in_ipsec_params.basic_params.config_done=0;
@@ -880,9 +851,6 @@ METHOD(kernel_ipsec_t, enable_udp_decap, bool,
 METHOD(kernel_ipsec_t, destroy, void,
 	private_ipsec_offload_t *this)
 {
-#ifndef ENABLEGRPC
-	close(this->socket);
-#endif
 	this->mutex->destroy(this->mutex);
 	this->close = true;
 	usleep(TEN_MS);
@@ -921,9 +889,6 @@ ipsec_offload_t *ipsec_offload_create()
 		},
 		.mutex = mutex_create(MUTEX_TYPE_DEFAULT),
 	);
-#ifndef ENABLEGRPC
-	ipsec_sa_get_sock(&sock);
-#else
 	if (gnmi_init() == IPSEC_FAILURE)
 		DBG1(DBG_KNL, "gnmi init failed!\n");
 	if (p4rt_init() == IPSEC_FAILURE)
@@ -931,8 +896,6 @@ ipsec_offload_t *ipsec_offload_create()
 
 	this->close = false;
 	ipsec_auto_config_init(&this->thread_id, &this->close);
-#endif
-	this->socket = sock;
 //	ipsec->events->register_listener(ipsec->events, &this->ipsec_listener);
 	return &this->public;
 };
