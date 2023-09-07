@@ -523,12 +523,19 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	char mask[16];
 	char mac_mask[16];
 	uint32_t spi;
+	/* These MAC addresses should be derived from another table Probable when this p4 is integrated with LN p4
+	 * This is a tempory arrangment to ensure IPSec functionality works.
+	 * On MEV IPU there could be 2 WAN interfaces hence 2 MACs*/
 	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
 	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
 	chunk_t ts_src = chunk_empty;
 	chunk_t ts_dst = chunk_empty;
+	chunk_t outer_src = chunk_empty;
+	chunk_t outer_dst = chunk_empty;
 	char from[IPV6_LEN] = {0};
 	char to[IPV6_LEN] = {0};
+	char outer_from[IPV6_LEN] = {0};
+	char outer_to[IPV6_LEN] = {0};
 	uint32_t temp_offloadid ;
 
 	this->mutex->lock(this->mutex);
@@ -574,10 +581,10 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 
 		if (data->sa->mode == MODE_TUNNEL)
 		{
-
+			DBG2(DBG_KNL, "Going for tunnel mode INGRESS add SPI 0x%x SA_INDEX 0x%x ",spi, temp_offloadid );
 			err = ipsec_outer_ipv4_decap_mod_table(
 					IPSEC_TABLE_ADD,
-					temp_offloadid,
+					2,
 					inner_smac,
 					inner_dmac);
 			if(err != IPSEC_SUCCESS)
@@ -586,7 +593,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 					      IPSEC_TABLE_ADD,
 					      1,
 					      1,
-					      temp_offloadid,
+					      2,/*As of now SAD table programs req-id a 2 hence changing it to 2. This can be changed to offload id once map ingress SPI to egress*/
 					      to,
 					      mac_mask,
 					      1);
@@ -604,6 +611,14 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
 		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		//Copy outer IP address for in Tunnel mode headers
+		outer_src = data->src->get_address(data->src);
+		outer_dst = data->dst->get_address(data->dst);
+		memset(&(outer_from),0x0,IPV6_LEN);
+		memset(&(outer_to),0x0,IPV6_LEN);
+		memcpy(&(outer_from),outer_src.ptr,outer_src.len);
+		memcpy(&(outer_to),outer_dst.ptr,outer_dst.len);
+
 		DBG2(DBG_KNL,"AAA outbound SA/Policy Add :: saddr=%s, daddr=%s, spi=0x%x, offloadid=0x%x protocol=%d\n",from,to,data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)),id->src_ts->get_protocol(id->src_ts));
 		DBG2(DBG_KNL,"to");
 		for(int a=0;a<ts_dst.len;a++)
@@ -634,8 +649,8 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 						       from,
 						       to,
 						       1,
-						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),i*//*spi & 0x00FFFFFF*/ /* need to ensure host endiannes*/
-						       temp_offloadid,/*(0x00FFFFFF & ntohl(data->sa->esp.spi)),*//*spi & 0x00FFFFFF*/
+						       temp_offloadid,
+						       temp_offloadid,
 						       id->src_ts->get_protocol(id->src_ts),
 						       data->sa->mode == MODE_TUNNEL);
 		if(err == IPSEC_FAILURE)
@@ -643,10 +658,13 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 
 		if (data->sa->mode == MODE_TUNNEL)
 		{
+			DBG2(DBG_KNL, "Going for tunnel mode egress add SPI 0x%x SA_INDEX 0x%x ",spi, temp_offloadid );
+			/* current understanding is source and destination address for outer ip header should be fetched from https://www.strongswan.org/apidoc/structkernel__ipsec__manage__policy__t.html 
+			 * */
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
-							       spi & 0x00FFFFFF,
-							       from,
-							       to,
+							       temp_offloadid,
+							       outer_from,
+							       outer_to,
 							       id->src_ts->get_protocol(id->src_ts),
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
@@ -690,6 +708,10 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 	char from[IPV6_LEN] = {0};
 	char to[IPV6_LEN] = {0};
 	uint32_t temp_offloadid ;
+	chunk_t outer_src = chunk_empty;
+	chunk_t outer_dst = chunk_empty;
+	char outer_from[IPV6_LEN] = {0};
+	char outer_to[IPV6_LEN] = {0};
 
 	DBG2(DBG_KNL, "Del Policy API called with dir=%d", id->dir);
 
@@ -733,11 +755,12 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_sa_classification_table: delete entry failed err_code[ %d]", err);
 
 		if (data->sa->mode == MODE_TUNNEL)
+			DBG2(DBG_KNL, "Going for tunnel mode delete ingress SA_INDEX 0x%x ",temp_offloadid );
 		{
 			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: delete entry failed err_code[ %d]", err);
-			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, temp_offloadid, to, mac_mask, 1);
+			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, 2, to, mac_mask, 1);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: delete entry failed err_code[ %d]", err);
 		}
@@ -755,6 +778,13 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		memset(&(to),0x0,IPV6_LEN);
 		memcpy(&(from),ts_src.ptr,ts_src.len);
 		memcpy(&(to),ts_dst.ptr,ts_dst.len);
+		//Copy outer IP address for in Tunnel mode headers
+		outer_src = data->src->get_address(data->src);
+		outer_dst = data->dst->get_address(data->dst);
+		memset(&(outer_from),0x0,IPV6_LEN);
+		memset(&(outer_to),0x0,IPV6_LEN);
+		memcpy(&(outer_from),outer_src.ptr,outer_src.len);
+		memcpy(&(outer_to),outer_dst.ptr,outer_dst.len);
 		DBG2(DBG_KNL,"AAA outbound SA/Policy Add :: saddr=%s, daddr=%s, spi=0x%x, offloadid=0x%x protocol=%d\n",from,to,data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)),id->src_ts->get_protocol(id->src_ts));
 		DBG2(DBG_KNL,"destination");
 
@@ -795,10 +825,11 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table: delete entry failed");
 		if (data->sa->mode == MODE_TUNNEL)
 		{
+			DBG2(DBG_KNL, "Going for tunnel mode delete egress SA_INDEX 0x%x ",temp_offloadid );
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
-							       spi & 0x00FFFFFF,
-							       from,
-							       to,
+							       temp_offloadid,
+							       outer_to,
+							       outer_from,
 							       id->src_ts->get_protocol(id->src_ts),
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)

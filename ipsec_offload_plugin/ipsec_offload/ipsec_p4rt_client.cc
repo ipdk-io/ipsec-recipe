@@ -607,7 +607,7 @@ class IPSecP4RuntimeClient {
 			table_entry.set_table_id(OUTER_IPV4_ENCAP_MOD_TABLE_ID);
 
 			field_match->set_field_id(1);
-			field_match->mutable_exact()->set_value((char*)&mod_blob_ptr);
+			field_match->mutable_exact()->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 			if (table_op == IPSEC_TABLE_ADD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(ENCAP_OUTER_IPV4_MOD_ACTION_ID);
