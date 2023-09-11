@@ -304,7 +304,7 @@ if [[ -d $THIRD_PARTY_DIR ]]; then
      ./configure --enable-grpc
      make uninstall
      make clean
-     make -j66
+     make $NUM_THREADS
      make install
      cp -r $OFFLOAD_DIR/third-party/  $OFFLOAD_DIR/strongswan/src/libcharon/plugins/ipsec_offload/
      cd $OFFLOAD_DIR/$DIR
@@ -325,7 +325,7 @@ if [[ -n $GRPC_DIR ]]; then
      cd $OFFLOAD_DIR/ipsec_offload/gnmi/
      ./autogen.sh
      ./configure --enable-grpc
-     make
+     make $NUM_THREADS
      cp -r $OFFLOAD_DIR/ipsec_offload/gnmi  $OFFLOAD_DIR/strongswan/src/libcharon/plugins/ipsec_offload/
      cd $OFFLOAD_DIR/$DIR
      echo "================== GNMI COMPILATION DONE ===================="
@@ -334,7 +334,7 @@ if [[ -n $GRPC_DIR ]]; then
      cd $OFFLOAD_DIR/ipsec_offload/p4runtime/
      ./autogen.sh
      ./configure --enable-grpc
-     make
+     make $NUM_THREADS
      cp -r $OFFLOAD_DIR/ipsec_offload/p4runtime  $OFFLOAD_DIR/strongswan/src/libcharon/plugins/ipsec_offload/
      cd $OFFLOAD_DIR/$DIR
      echo "================== P4RUNTIME COMPILATION DONE ===================="
@@ -349,5 +349,5 @@ fi
 touch -m -t 201512030000 src/libcharon/Makefile.am
 touch -m -t 201512030000 src/libcharon/plugins/ipsec_offload/Makefile.am
 make clean
-make
+make $NUM_THREADS
 make install

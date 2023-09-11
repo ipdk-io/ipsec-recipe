@@ -257,19 +257,22 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
         *spi = resp.mutable_notification(0)->mutable_update(0)->mutable_val()->uint_val();
         return true;
       } else {
-        LOGGER->Log("ERROR: failed to get spi");
+        LOGGER->Log("ERROR: GRPC status %d : %s", status.error_code(), status.error_message().c_str());
         return false;
       }
     }
 
     bool GnmiSubOnChange(std::string path) {
       stream_reader_writer = stub->Subscribe(&ctx_p);
+#if 0  // Currently its done as part of ipsec_fetch_spi()
       ::gnmi::SubscribeRequest req = BuildGnmiSubOnchangeRequest(path);
       if (ABSL_PREDICT_TRUE(stream_reader_writer->Write(req)))
         return true;
       else
         LOGGER->Log("ERROR: failed to subscribe for notification");
         return false;
+#endif
+	return true;
     }
 
   private:
@@ -324,6 +327,7 @@ enum ipsec_status ipsec_fetch_spi(uint32_t *fetched_spi) {
     if (status && *fetched_spi != INVALID_SA) {
         return IPSEC_SUCCESS;
     }
+    LOGGER->Log("ERROR: failed to get spi");
     return IPSEC_FAILURE;
 }
 
