@@ -66,7 +66,8 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 						uint16_t crypt_tag,
 						char dst_ip_addr[16],
 						char dst_ip_mask[16],
-						uint32_t match_priority);
+						uint32_t match_priority,
+						uint32_t mod_blob_ptr);
 enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
 						uint32_t mod_blob_ptr,
 						char src_ip_addr[16],
@@ -526,8 +527,10 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	/* These MAC addresses should be derived from another table Probable when this p4 is integrated with LN p4
 	 * This is a tempory arrangment to ensure IPSec functionality works.
 	 * On MEV IPU there could be 2 WAN interfaces hence 2 MACs*/
-	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
-	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+//	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
+//	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+	char inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
+	char inner_dmac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
 	chunk_t ts_src = chunk_empty;
 	chunk_t ts_dst = chunk_empty;
 	chunk_t outer_src = chunk_empty;
@@ -537,6 +540,16 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	char outer_from[IPV6_LEN] = {0};
 	char outer_to[IPV6_LEN] = {0};
 	uint32_t temp_offloadid ;
+	static uint32_t second_tun;
+	if(second_tun == 1)
+	{
+		inner_smac[1] = 0x0b;
+		inner_dmac[1] = 0x0b;
+		inner_smac[3] = 0x01;
+		inner_dmac[3] = 0x01;
+//		inner_smac[16] = {0x00, 0x0b, 0x00, 0x01, 0x03, 0x14};
+//		inner_dmac[16] = {0x00, 0x0b, 0x00, 0x01, 0x03, 0x14};
+	}
 
 	this->mutex->lock(this->mutex);
 	if(id->dir == POLICY_IN)
@@ -584,21 +597,23 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			DBG2(DBG_KNL, "Going for tunnel mode INGRESS add SPI 0x%x SA_INDEX 0x%x ",spi, temp_offloadid );
 			err = ipsec_outer_ipv4_decap_mod_table(
 					IPSEC_TABLE_ADD,
-					2,
+					temp_offloadid,
 					inner_smac,
 					inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: add entry failed err_code[ %d]", err);
 			err = ipsec_rx_post_decrypt_table(
 					      IPSEC_TABLE_ADD,
-					      1,
-					      1,
+					      0,
+					      0,
 					      2,/*As of now SAD table programs req-id a 2 hence changing it to 2. This can be changed to offload id once map ingress SPI to egress*/
 					      to,
 					      mac_mask,
-					      1);
+					      1,
+					      temp_offloadid);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: add entry failed err_code[ %d]", err);
+			second_tun = 1;
 		}
 
 	}
@@ -701,8 +716,10 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 	char mask[16];
 	char mac_mask[16];
 	uint32_t spi;
-	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
-	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+//	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
+//	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+	char inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
+	char inner_dmac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
 	chunk_t ts_src = chunk_empty;
 	chunk_t ts_dst = chunk_empty;
 	char from[IPV6_LEN] = {0};
@@ -760,7 +777,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: delete entry failed err_code[ %d]", err);
-			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 1, 1, 2, to, mac_mask, 1);
+			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 0, 0, 2, to, mac_mask, 1,temp_offloadid);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: delete entry failed err_code[ %d]", err);
 		}
