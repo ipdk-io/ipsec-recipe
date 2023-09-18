@@ -97,26 +97,56 @@ extern "C" enum ipsec_status ipsec_set_pipe(void);
 
 extern "C" enum ipsec_status p4rt_init();
 
+#define P4RT_SERVER_NAME      "p4rt_server"
+#define P4RT_CLIENT_CERT_PATH "cli_cert"
+#define P4RT_CLIENT_KEY_PATH  "cli_key"
+#define P4RT_CA_CERT_PATH     "ca_cert"
+
 #define P4_INFO_FILE "/var/tmp/linux_networking.p4info.txt"
 #define P4_BIN_FILE "/var/tmp/ipsec_fixed_func.pb.bin"
 #define DEVICE_ID        1
 #define ELECTION_ID_HIGH 1
 #define ELECTION_ID_LOW  0
 
-#define IPSEC_TX_SPD_TBLE_ID 		44556728
-#define IPSEC_PROTECT_ACTION_ID		21435079
-#define TX_SA_CLASSIFICATION_TABLE_ID	46182446
-#define RX_SA_CLASSIFICATION_TABLE_ID	45068641
-#define IPSEC_TX_TUNNEL_ACTION_ID	28450616
-#define IPSEC_TX_TRANSPORT_ID 		17156783
-#define IPSEC_TX_TUNNEL_ID 		28450616
-#define IPSEC_RX_TUNNEL_ACTION_ID	33177492
-#define OUTER_IPV4_ENCAP_MOD_TABLE_ID	41572460
-#define ENCAP_OUTER_IPV4_MOD_ACTION_ID	26814003
-#define OUTER_IPV4_DECAP_MOD_TABLE_ID   36144080
-#define DECAP_OUTER_IPV4_MOD_ACTION_ID  19827329
-#define RX_POST_DECRYPT_TABLE_ID	41233864
-#define RX_POST_DECRYPT_ACTION_ID	16818337
+enum table_index {
+  IPSEC_TX_SPD_TABLE_IDX,
+  TX_SA_CLASSIFICATION_TABLE_IDX,
+  RX_SA_CLASSIFICATION_TABLE_IDX,
+  OUTER_IPV4_ENCAP_MOD_TABLE_IDX,
+  OUTER_IPV4_DECAP_MOD_TABLE_IDX,
+  RX_POST_DECRYPT_TABLE_IDX,
+  IPSEC_TX_TRANSPORT_ACTION_IDX,
+  IPSEC_TX_TUNNEL_ACTION_IDX,
+  IPSEC_RX_TUNNEL_ACTION_IDX,
+  IPSEC_PROTECT_ACTION_IDX,
+  ENCAP_OUTER_IPV4_MOD_ACTION_IDX,
+  DECAP_OUTER_IPV4_MOD_ACTION_IDX,
+  RX_POST_DECRYPT_ACTION_IDX,
+  TABLE_INDEX_MAX
+};
+
+/* table names is in order with table_index, these are read from config_file */
+static string ipsec_tbl_names[TABLE_INDEX_MAX] = {
+  "tx_spd", "tx_sa_classification", "rx_sa_classification",
+  "encap_mod", "decap_mod", "post_decrypt",
+  "tx_transport_action", "tx_tunnel_action", "rx_tunnel_action",
+  "protect_action", "encap_mod_action", "decap_mod_action",
+  "rx_post_decrypt_action"
+};
+
+struct p4table_info {
+  string name;
+  uint32_t id;
+};
+
+static struct p4rt_ctx {
+  string p4rt_server_addr;
+  string cli_cert;
+  string cli_key;
+  string ca_cert;
+  /* P4 table and actions names*/
+  struct p4table_info info_list[TABLE_INDEX_MAX];
+} p4rt_ctx;
 
 /* This is temporary workaround Need to find proper solution */
 #define STREAM_CHANNEL() \
@@ -141,17 +171,75 @@ extern "C" enum ipsec_status p4rt_init();
 /* text file in key=value format e.g. p4rt_server=127.0.0.1:9559 */
 static string config_file = "/usr/share/stratum/ipsec_offload.conf";
 
-#define P4RT_SERVER_NAME      "p4rt_server"
-#define P4RT_CLIENT_CERT_PATH "cli_cert"
-#define P4RT_CLIENT_KEY_PATH  "cli_key"
-#define P4RT_CA_CERT_PATH     "ca_cert"
+int parse_p4info(void) {
+    struct p4table_info *tbl_info = p4rt_ctx.info_list;
+    std::string p4info_file = P4_INFO_FILE;
+    p4::config::v1::P4Info p4info;
+    std::ifstream ip4info_file;
+    std::string text;
 
-static struct p4rt_ctx {
-  string p4rt_server_addr;
-  string cli_cert;
-  string cli_key;
-  string ca_cert;
-} p4rt_ctx;
+    ip4info_file.open(p4info_file.c_str());
+    if (!ip4info_file.is_open()) {
+        LOGGER->Log("ERROR: %s: Failed to open p4info file: %s!",
+		    __func__, p4info_file.c_str());
+	return -1;
+    }
+    std::string contents_p4info((std::istreambuf_iterator<char>(ip4info_file)),
+			        (std::istreambuf_iterator<char>()));
+
+    text.append(contents_p4info);
+
+    if (!::google::protobuf::TextFormat::ParseFromString(text, &p4info)) {
+        LOGGER->Log("ERROR: %s: Failed to parse p4info file: %s!",
+		    __func__, p4info_file.c_str());
+	return -1;
+    }
+    ip4info_file.close();
+
+    /* Iterate over the table and store the Ids in info list */
+    for (const auto& table : p4info.tables()) {
+        if (table.preamble().name() == tbl_info[IPSEC_TX_SPD_TABLE_IDX].name) {
+	    tbl_info[IPSEC_TX_SPD_TABLE_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[TX_SA_CLASSIFICATION_TABLE_IDX].name) {
+	    tbl_info[TX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].name) {
+	    tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].name) {
+	    tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name) {
+	    tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_TABLE_IDX].name) {
+	    tbl_info[RX_POST_DECRYPT_TABLE_IDX].id = table.preamble().id();
+	}
+    }
+
+    /* Iterate over the table and store the Ids in info list */
+    for (const auto& table : p4info.actions()) {
+        if (table.preamble().name() == tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].name) {
+	    tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].name) {
+	    tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].name) {
+	    tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[IPSEC_PROTECT_ACTION_IDX].name) {
+	    tbl_info[IPSEC_PROTECT_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
+	    tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
+	    tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_ACTION_IDX].name) {
+	    tbl_info[RX_POST_DECRYPT_ACTION_IDX].id = table.preamble().id();
+	}
+    }
+
+    LOGGER->Log("DEBUG: %s: p4 table NAME : ID for IPsec SDP", __func__);
+    for (int i = IPSEC_TX_SPD_TABLE_IDX; i < TABLE_INDEX_MAX; i++) {
+        LOGGER->Log(tbl_info[i].name + ':');
+        LOGGER->Log("%u", tbl_info[i].id);
+    }
+
+    return 0;
+}
 
 enum ipsec_status p4rt_init() {
 
@@ -171,6 +259,7 @@ enum ipsec_status p4rt_init() {
              auto name = line.substr(0, delimiterPos);
              auto value = line.substr(delimiterPos + 1);
              std::cout << name << " " << value << '\n';
+
 	     if (name == P4RT_SERVER_NAME)
 	         p4rt_ctx.p4rt_server_addr = value;
 	     else if (name == P4RT_CLIENT_CERT_PATH)
@@ -179,12 +268,44 @@ enum ipsec_status p4rt_init() {
 	         p4rt_ctx.cli_key = value;
 	     else if (name == P4RT_CA_CERT_PATH)
 	         p4rt_ctx.ca_cert = value;
+	     else if (name == ipsec_tbl_names[IPSEC_TX_SPD_TABLE_IDX])
+	         p4rt_ctx.info_list[IPSEC_TX_SPD_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[TX_SA_CLASSIFICATION_TABLE_IDX])
+	         p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[RX_SA_CLASSIFICATION_TABLE_IDX])
+	         p4rt_ctx.info_list[RX_SA_CLASSIFICATION_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[OUTER_IPV4_ENCAP_MOD_TABLE_IDX])
+	         p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[OUTER_IPV4_DECAP_MOD_TABLE_IDX])
+	         p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_TABLE_IDX])
+	         p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_TX_TRANSPORT_ACTION_IDX])
+	         p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_TX_TUNNEL_ACTION_IDX])
+	         p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_RX_TUNNEL_ACTION_IDX])
+	         p4rt_ctx.info_list[IPSEC_RX_TUNNEL_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_PROTECT_ACTION_IDX])
+	         p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[ENCAP_OUTER_IPV4_MOD_ACTION_IDX])
+	         p4rt_ctx.info_list[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[DECAP_OUTER_IPV4_MOD_ACTION_IDX])
+	         p4rt_ctx.info_list[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_ACTION_IDX])
+	         p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].name = value;
          }
+	 cFile.close();
      }
      else
      {
+         LOGGER->Log("ERROR: %s: read conf file failed!", __func__);
          return IPSEC_FAILURE;
      }
+     LOGGER->Log("INFO: %s: read conf file is done", __func__);
+     if (parse_p4info())
+         LOGGER->Log("ERROR: %s: Parsing p4info file failed!", __func__);
+
      return IPSEC_SUCCESS;
 }
 
@@ -333,7 +454,7 @@ class IPSecP4RuntimeClient {
 
 			STREAM_CHANNEL();
 
-			table_entry.set_table_id(IPSEC_TX_SPD_TBLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[IPSEC_TX_SPD_TABLE_IDX].id);
 			table_entry.set_priority(match_priority);
 
 			field_match=table_entry.add_match();
@@ -349,7 +470,7 @@ class IPSecP4RuntimeClient {
 			ternary->set_value(prio);
 #endif
 			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(IPSEC_PROTECT_ACTION_ID);
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].id);
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 
@@ -390,7 +511,7 @@ class IPSecP4RuntimeClient {
 			p4::v1::Action_Param *params;
 			std::string protocol={0};
 	  		std::string offload = {1};
-			table_entry.set_table_id(TX_SA_CLASSIFICATION_TABLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
 
 			STREAM_CHANNEL();
 			//offload = to_string((uint32_t)crypto_offload);
@@ -414,9 +535,9 @@ class IPSecP4RuntimeClient {
 
 			if (table_op == IPSEC_TABLE_ADD) {
 				if (tunnel_mode)
-					table_entry.mutable_action()->mutable_action()->set_action_id(IPSEC_TX_TUNNEL_ID);
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
 				else
-					table_entry.mutable_action()->mutable_action()->set_action_id(IPSEC_TX_TRANSPORT_ID);
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(Uint32ToByteStream(offloadid));
@@ -461,7 +582,7 @@ class IPSecP4RuntimeClient {
 			p4::v1::Action_Param *params;
 
 			STREAM_CHANNEL();
-			table_entry.set_table_id(RX_SA_CLASSIFICATION_TABLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[RX_SA_CLASSIFICATION_TABLE_IDX].id);
 
 			field_match = table_entry.add_match();
 			field_match->set_field_id(1);
@@ -479,7 +600,7 @@ class IPSecP4RuntimeClient {
 			std::cout << Uint32ToByteStream(spi) <<"\n";
 
 			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(IPSEC_RX_TUNNEL_ACTION_ID);
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_RX_TUNNEL_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(Uint32ToByteStream(sa_idx));
@@ -530,7 +651,7 @@ class IPSecP4RuntimeClient {
 	  		std::string inner_next_hop_id = {1};
 			memset(crypt_tag_mask, 0xff, sizeof(crypt_tag_mask));
 
-			table_entry.set_table_id(RX_POST_DECRYPT_TABLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].id);
 			table_entry.set_priority(match_priority);
 
 			field_match = table_entry.add_match();
@@ -558,7 +679,7 @@ class IPSecP4RuntimeClient {
 			ternary->set_mask(convert_ip_to_str(dst_ip_mask));
 
 			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(RX_POST_DECRYPT_ACTION_ID);
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(inner_next_hop_id);
@@ -603,14 +724,14 @@ class IPSecP4RuntimeClient {
 	  		std::string offload = {1};
 
 			STREAM_CHANNEL();
-			table_entry.set_table_id(OUTER_IPV4_ENCAP_MOD_TABLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id);
 
 			field_match->set_field_id(1);
 			field_match->mutable_exact()->set_value((char*)&mod_blob_ptr);
 
 			protocol[0] = proto;
 			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(ENCAP_OUTER_IPV4_MOD_ACTION_ID);
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(convert_ip_to_str(src_ip_addr));
@@ -664,13 +785,13 @@ class IPSecP4RuntimeClient {
 			p4::v1::Action_Param *params;
 
 			STREAM_CHANNEL();
-			table_entry.set_table_id(OUTER_IPV4_DECAP_MOD_TABLE_ID);
+			table_entry.set_table_id(p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id);
 
 			field_match->set_field_id(1);
 			field_match->mutable_exact()->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(DECAP_OUTER_IPV4_MOD_ACTION_ID);
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[DECAP_OUTER_IPV4_MOD_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
 				params->set_value(ConvertMacToStr(inner_dmac));

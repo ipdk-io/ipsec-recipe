@@ -358,6 +358,7 @@ void *audit_log_poll(void *arg) {
 		 * enable it using ipsec_subscribe_audit_log() and remove this check.
 		 */
 		if (!subscribe_audit_done) {
+			DBG2(DBG_KNL, "subscribe to audit log notification not done!\n");
 			sleep(1);
 			continue;
 		}
@@ -897,5 +898,6 @@ ipsec_offload_t *ipsec_offload_create()
 	this->close = false;
 	ipsec_auto_config_init(&this->thread_id, &this->close);
 //	ipsec->events->register_listener(ipsec->events, &this->ipsec_listener);
+	DBG1(DBG_KNL, "p4rt and gnmi init Done \n");
 	return &this->public;
 };

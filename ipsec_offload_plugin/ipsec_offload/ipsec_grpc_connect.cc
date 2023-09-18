@@ -105,6 +105,7 @@ enum ipsec_status gnmi_init() {
 	     else if (name == GNMI_CA_CERT_PATH)
 	         gnmi_ctx.ca_cert = value;
          }
+	 cFile.close();
      }
      else
      {
@@ -254,6 +255,7 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
       ::gnmi::GetResponse resp;
       Status status = stub->Get(&ctx, req, &resp);
       if(status.ok()) {
+        LOGGER->Log("DEBUG: Got gnmi resp for GnmiGetSPI \n" + resp.DebugString());
         *spi = resp.mutable_notification(0)->mutable_update(0)->mutable_val()->uint_val();
         return true;
       } else {
