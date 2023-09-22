@@ -1,0 +1,62 @@
+diff --git a/src/libcharon/sa/child_sa.c b/src/libcharon/sa/child_sa.c
+index 9b06ebc3c..d95e3061b 100644
+--- a/src/libcharon/sa/child_sa.c
++++ b/src/libcharon/sa/child_sa.c
+@@ -929,6 +929,8 @@ static status_t install_internal(private_child_sa_t *this, chunk_t encr,
+ 		sa.mark.value = inbound ? this->mark_in.value : this->mark_out.value;
+ 	}
+ 
++	DBG2(DBG_CHD, "  IF_ID =%x, cahnging it to %x", id.if_id, this->my_spi);
++	id.if_id = this->my_spi;
+ 	status = charon->kernel->add_sa(charon->kernel, &id, &sa);
+ 
+ 	my_ts->destroy(my_ts);
+@@ -1027,6 +1029,8 @@ static status_t install_policies_inbound(private_child_sa_t *this,
+ 	};
+ 	status_t status = SUCCESS;
+ 
++	DBG2(DBG_CHD, " add_policy_in IF_ID =%x, cahnging it to %x", in_id.if_id, this->my_spi);
++	in_id.if_id = this->my_spi;
+ 	status |= charon->kernel->add_policy(charon->kernel, &in_id, &in_policy);
+ 	if (this->mode != MODE_TRANSPORT)
+ 	{
+@@ -1063,6 +1067,9 @@ static status_t install_policies_outbound(private_child_sa_t *this,
+ 	};
+ 	status_t status = SUCCESS;
+ 
++	DBG2(DBG_CHD, " add_policy_o IF_ID =%x, cahnging it to %x", out_id.if_id, this->my_spi);
++	out_id.if_id = this->my_spi;
++
+ 	status |= charon->kernel->add_policy(charon->kernel, &out_id, &out_policy);
+ 
+ 	if (this->mode != MODE_TRANSPORT && this->policies_fwd_out)
+@@ -1135,6 +1142,9 @@ static void del_policies_inbound(private_child_sa_t *this,
+ 		.sa = my_sa,
+ 	};
+ 
++	DBG2(DBG_CHD, " del_policy_in IF_ID =%x, cahnging it to %x", in_id.if_id, this->my_spi);
++	in_id.if_id = this->my_spi;
++
+ 	charon->kernel->del_policy(charon->kernel, &in_id, &in_policy);
+ 
+ 	if (this->mode != MODE_TRANSPORT)
+@@ -1170,6 +1180,9 @@ static void del_policies_outbound(private_child_sa_t *this,
+ 		.sa = other_sa,
+ 	};
+ 
++	DBG2(DBG_CHD, " out_policy_out IF_ID =%x, cahnging it to %x", out_id.if_id, this->my_spi);
++	out_id.if_id = this->my_spi;
++
+ 	charon->kernel->del_policy(charon->kernel, &out_id, &out_policy);
+ 
+ 	if (this->mode != MODE_TRANSPORT && this->policies_fwd_out)
+@@ -1437,6 +1450,9 @@ METHOD(child_sa_t, remove_outbound, void,
+ 	kernel_ipsec_del_sa_t sa = {
+ 		.cpi = this->other_cpi,
+ 	};
++	DBG2(DBG_CHD, "  IF_ID =%x, cahnging it to %x", id.if_id, this->my_spi);
++	id.if_id = this->my_spi;
++
+ 	charon->kernel->del_sa(charon->kernel, &id, &sa);
+ 	this->outbound_state = CHILD_OUTBOUND_NONE;
+ }

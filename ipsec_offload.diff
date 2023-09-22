@@ -1,0 +1,111 @@
+diff --git a/ipsec_offload_plugin/ipsec_offload/ipsec_offload.c b/ipsec_offload_plugin/ipsec_offload/ipsec_offload.c
+index 0e84fab..b2edc05 100644
+--- a/ipsec_offload_plugin/ipsec_offload/ipsec_offload.c
++++ b/ipsec_offload_plugin/ipsec_offload/ipsec_offload.c
+@@ -224,7 +224,8 @@ static void fill_ipsec_params(ipsec_offload_params_t *params,
+ 		params->enc_alg = 1;
+ 
+ 	params->spi = id->spi;
+-	params->offloadid = (0x00FFFFFF & ntohl(params->spi));
++	DBG2(DBG_KNL, "ADD SA IF_ID: 0x%x\n", id->if_id);
++	params->offloadid = (0x00FFFFFF & ntohl(id->if_id));
+ 	params->proto = id->proto;
+ 	params->esn = data->esn;
+ 	params->inbound = data->inbound;
+@@ -530,7 +531,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
+ //	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
+ //	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+ 	char inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
+-	char inner_dmac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
++	char inner_dmac[16] = {0x84, 0x16, 0x0c, 0xba, 0x90, 0xf0};
+ 	chunk_t ts_src = chunk_empty;
+ 	chunk_t ts_dst = chunk_empty;
+ 	chunk_t outer_src = chunk_empty;
+@@ -577,7 +578,10 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
+ 			DBG2(DBG_KNL,"%x",from[a]);
+ 		}
+ 		DBG2(DBG_KNL,"RX data->sa->esp.spi=0x%x",data->sa->esp.spi);
+-		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
++		DBG2(DBG_KNL, "ADD_policy IF_ID: 0x%x\n", id->if_id);
++
++		temp_offloadid = (0x00FFFFFF & ntohl(id->if_id));
++		DBG2(DBG_KNL, "ADD_policy offload_id: 0x%x\n", temp_offloadid);
+ #ifdef CHANGE_BYTE_ORDER
+ 		temp_offloadid = temp_offloadid <<16;
+ 		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+@@ -598,8 +602,8 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
+ 			err = ipsec_outer_ipv4_decap_mod_table(
+ 					IPSEC_TABLE_ADD,
+ 					temp_offloadid,
+-					inner_smac,
+-					inner_dmac);
++					inner_dmac,
++					inner_smac);
+ 			if(err != IPSEC_SUCCESS)
+ 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: add entry failed err_code[ %d]", err);
+ 			err = ipsec_rx_post_decrypt_table(
+@@ -614,6 +618,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
+ 			if(err != IPSEC_SUCCESS)
+ 				DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl: add entry failed err_code[ %d]", err);
+ 			second_tun = 1;
++			second_tun = 0;
+ 		}
+ 
+ 	}
+@@ -647,7 +652,10 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
+ 		}
+ 
+ 		memset(mask, 0xFF, sizeof(uint32_t));
+-		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
++		DBG2(DBG_KNL, "ADD_policy IF_ID: 0x%x\n", id->if_id);
++		temp_offloadid = (0x00FFFFFF & ntohl(id->if_id));
++		DBG2(DBG_KNL, "ADD_policy offload_id: 0x%x\n", temp_offloadid);
++
+ #ifdef CHANGE_BYTE_ORDER		
+ 		temp_offloadid = temp_offloadid<<16;
+ 		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);
+@@ -719,7 +727,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
+ //	char inner_smac[16] = {0x00, 0x02, 0x00, 0x00, 0x03, 0x18};
+ //	char inner_dmac[16] = {0xb4, 0x96, 0x91, 0x9f, 0x67, 0x31};
+ 	char inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
+-	char inner_dmac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
++	char inner_dmac[16] = {0x84, 0x16, 0x0c, 0xba, 0x90, 0xf0};
+ 	chunk_t ts_src = chunk_empty;
+ 	chunk_t ts_dst = chunk_empty;
+ 	char from[IPV6_LEN] = {0};
+@@ -746,7 +754,11 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
+ 		memset(mac_mask, 0xFF, sizeof(mac_mask));
+ 		DBG2(DBG_KNL," source %s len %d",ts_src.ptr,ts_src.len);
+ 		DBG2(DBG_KNL," destination %s len %d",ts_dst.ptr,ts_dst.len);
+-		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
++		DBG2(DBG_KNL, "DEL_policy_in IF_ID: 0x%x\n", id->if_id);
++		temp_offloadid = (0x00FFFFFF & ntohl(id->if_id));
++		DBG2(DBG_KNL, "DEL_policy_in offload_id: 0x%x\n", temp_offloadid);
++
++//		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
+ 		DBG2(DBG_KNL,"to");
+ 		for(int a=0;a<ts_dst.len;a++)
+ 		{
+@@ -772,9 +784,8 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
+ 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_sa_classification_table: delete entry failed err_code[ %d]", err);
+ 
+ 		if (data->sa->mode == MODE_TUNNEL)
+-			DBG2(DBG_KNL, "Going for tunnel mode delete ingress SA_INDEX 0x%x ",temp_offloadid );
+ 		{
+-			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_smac, inner_dmac);
++			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL, temp_offloadid, inner_dmac, inner_smac);
+ 			if(err != IPSEC_SUCCESS)
+ 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table: delete entry failed err_code[ %d]", err);
+ 			err = ipsec_rx_post_decrypt_table( IPSEC_TABLE_DEL, 0, 0, 2, to, mac_mask, 1,temp_offloadid);
+@@ -806,7 +817,10 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
+ 		DBG2(DBG_KNL,"destination");
+ 
+ 		memset(mask, 0xFF, sizeof(uint32_t));
+-		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
++//		temp_offloadid = (0x00FFFFFF & ntohl(data->sa->esp.spi));
++		DBG2(DBG_KNL, "DEL_policy_out IF_ID: 0x%x\n", id->if_id);
++		temp_offloadid = (0x00FFFFFF & ntohl(id->if_id));
++		DBG2(DBG_KNL, "DEL_policy_out offload_id: 0x%x\n", temp_offloadid);
+ #ifdef CHANGE_BYTE_ORDER
+ 		temp_offloadid = temp_offloadid<<16;
+ 		DBG2(DBG_KNL,"setting temp_offloadid= %d",temp_offloadid);

@@ -36,7 +36,9 @@ cd ipsec_offload_plugin/
 git clone  https://github.com/strongswan/strongswan.git
 cd strongswan/
 git checkout tags/5.9.3 -b 5.9.3
+git apply ../../child_sa.diff
 cd -
+git apply ../ipsec_offload.diff 
 ```
 
 Build strongSwan
