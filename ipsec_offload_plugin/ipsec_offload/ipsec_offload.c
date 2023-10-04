@@ -565,6 +565,12 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 		DBG2(DBG_KNL," destination %s len %d",ts_dst.ptr,ts_dst.len);
 		memset(mask, 0xFF, sizeof(uint32_t));
 		memset(mac_mask, 0xFF, sizeof(mac_mask));
+		outer_src = data->src->get_address(data->src);
+		outer_dst = data->dst->get_address(data->dst);
+		memset(&(outer_from),0x0,IPV6_LEN);
+		memset(&(outer_to),0x0,IPV6_LEN);
+		memcpy(&(outer_from),outer_src.ptr,outer_src.len);
+		memcpy(&(outer_to),outer_dst.ptr,outer_dst.len);
 		DBG2(DBG_KNL," AAA inbound Policy Add ::saddr=%s daddr=%s spi=0x%x offloadid=0x%x \n",from,to, data->sa->esp.spi,(0x00FFFFFF & ntohl(data->sa->esp.spi)));
 		DBG2(DBG_KNL,"to");
 		for(int a=0;a<ts_dst.len;a++)
@@ -585,8 +591,8 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 				
 			 DBG2(DBG_KNL,"temp_offloadid= %d",temp_offloadid);
 		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_ADD,
-						       to,
-						       from,
+						       outer_to,
+						       outer_from,
 						        ntohl(data->sa->esp.spi), /* need to ensure host endiannes*/
 						        temp_offloadid/*(0x00FFFFFF & ntohl(data->sa->esp.spi))*//*spi & 0x00FFFFFF*/);
 		if(err != IPSEC_SUCCESS)
