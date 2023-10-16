@@ -78,7 +78,8 @@ extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
 						      uint16_t crypt_tag,
 						      char dst_ip_addr[16],
 						      char dst_ip_mask[16],
-						      uint32_t match_priority);
+						      uint32_t match_priority,
+						      uint32_t mod_blob_ptr);
 extern "C" enum ipsec_status ipsec_outer_ipv4_encap_mod_table(
 						enum ipsec_table_op table_op,
 						uint32_t mod_blob_ptr,
@@ -632,7 +633,8 @@ class IPSecP4RuntimeClient {
 								   uint16_t crypto_tag,
 								   char dst_ip_addr[16],
 								   char dst_ip_mask[16],
-								   uint32_t match_priority) {
+								   uint32_t match_priority,
+								   uint32_t mod_blob_ptr) {
 			TableEntry table_entry;
 			WriteRequest request;
 			p4::v1::FieldMatch *field_match;
@@ -648,7 +650,6 @@ class IPSecP4RuntimeClient {
 	  		std::string crypt_status = {0};
 	  		std::string crypt_status_mask = {1};
 	  		char crypt_tag_mask[4];
-	  		std::string inner_next_hop_id = {1};
 			memset(crypt_tag_mask, 0xff, sizeof(crypt_tag_mask));
 
 			table_entry.set_table_id(p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].id);
@@ -682,7 +683,7 @@ class IPSecP4RuntimeClient {
 				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
-				params->set_value(inner_next_hop_id);
+				params->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
@@ -727,7 +728,7 @@ class IPSecP4RuntimeClient {
 			table_entry.set_table_id(p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id);
 
 			field_match->set_field_id(1);
-			field_match->mutable_exact()->set_value((char*)&mod_blob_ptr);
+			field_match->mutable_exact()->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 			protocol[0] = proto;
 			if (table_op == IPSEC_TABLE_ADD) {
@@ -909,7 +910,8 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 					      uint16_t crypto_tag,
 					      char dst_ip_addr[16],
 					      char dst_ip_mask[16],
-					      uint32_t match_priority) {
+					      uint32_t match_priority,
+					      uint32_t mod_blob_ptr) {
 
 	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
 
@@ -919,7 +921,8 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 						       crypto_tag,
 						       dst_ip_addr,
 						       dst_ip_mask,
-						       match_priority);
+						       match_priority,
+						       mod_blob_ptr);
 }
 
 enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
