@@ -636,7 +636,9 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 	char dst[IPV6_LEN] = {0};
 	char to[IPV6_LEN] = {0};
 	uint32_t spi, offload_id;
-	char mac_mask[16];
+	char mac_mask[16] = {0};
+	host_t *net_host;
+	uint8_t netbits;
 	char mask[16];
 	int  err;
 
@@ -676,7 +678,8 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 		offload_id = 0x00FFFFFF & spi;
 
 		memset(mask, 0xFF, sizeof(uint32_t));
-		memset(mac_mask, 0xFF, sizeof(mac_mask));
+		id->dst_ts->to_subnet(id->dst_ts, &net_host, &netbits);
+		memset(mac_mask, 0xFF, netbits/8);
 		DBG2(DBG_KNL,"ADD in_policy offloadid=%d\n", offload_id);
 		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_ADD,
 						       dst_outer, src_outer, spi, offload_id);
@@ -787,7 +790,9 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 	uint32_t spi, offload_id;
 	char src[IPV6_LEN] = {0};
 	char dst[IPV6_LEN] = {0};
-	char mac_mask[16];
+	char mac_mask[16] = {0};
+	host_t *net_host;
+	uint8_t netbits;
 	char mask[16];
 	int err;
 
@@ -811,7 +816,8 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		offload_id = 0x00FFFFFF & spi;
 
 		memset(mask, 0xFF, sizeof(uint32_t));
-		memset(mac_mask, 0xFF, sizeof(mac_mask));
+		id->dst_ts->to_subnet(id->dst_ts, &net_host, &netbits);
+		memset(mac_mask, 0xFF, netbits/8);
 
 		err = ipsec_rx_sa_classification_table(IPSEC_TABLE_DEL,
 						       dst_outer, src_outer,
