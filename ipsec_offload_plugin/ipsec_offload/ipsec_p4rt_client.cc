@@ -480,11 +480,13 @@ class IPSecP4RuntimeClient {
 			if (table_op == IPSEC_TABLE_ADD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].id);
 				update->set_type(p4::v1::Update::INSERT);
-			} else {
+			} else if (table_op == IPSEC_TABLE_MOD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::MODIFY);
 
+			} else {
 				update->set_type(p4::v1::Update::DELETE);
 			}
-
 
 			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
 
@@ -496,8 +498,14 @@ class IPSecP4RuntimeClient {
 			if(status.ok()) {
 				return IPSEC_SUCCESS;
 			} else {
-				std::cout << status.error_code() << ": " << status.error_message()
-					<< std::endl;
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
 				return IPSEC_FAILURE;
 			}
 		}
@@ -562,6 +570,21 @@ class IPSecP4RuntimeClient {
 					params->set_value(Uint32ToByteStream(tunnel_id));
 				}
 				update->set_type(p4::v1::Update::INSERT);
+			} else if (table_op == IPSEC_TABLE_MOD) {
+				if (tunnel_mode)
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
+				else
+					table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
+				params = table_entry.mutable_action()->mutable_action()->add_params();
+				params->set_param_id(1);
+				params->set_value(Uint32ToByteStream(offloadid));
+
+				if (tunnel_mode) {
+					params = table_entry.mutable_action()->mutable_action()->add_params();
+					params->set_param_id(2);
+					params->set_value(Uint32ToByteStream(tunnel_id));
+				}
+				update->set_type(p4::v1::Update::MODIFY);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
 			}
@@ -576,8 +599,15 @@ class IPSecP4RuntimeClient {
 			if(status.ok()) {
 				return IPSEC_SUCCESS;
 			} else {
-				std::cout << status.error_code() << ": " << status.error_message()
-					<< std::endl;
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
+
 				return IPSEC_FAILURE;
 			}
 		}
@@ -699,6 +729,13 @@ class IPSecP4RuntimeClient {
 				params->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 				update->set_type(p4::v1::Update::INSERT);
+			} if (table_op == IPSEC_TABLE_MOD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
+				params = table_entry.mutable_action()->mutable_action()->add_params();
+				params->set_param_id(1);
+				params->set_value(Uint32ToByteStream(mod_blob_ptr));
+
+				update->set_type(p4::v1::Update::MODIFY);
 			} else {
 
 				update->set_type(p4::v1::Update::DELETE);
@@ -713,8 +750,15 @@ class IPSecP4RuntimeClient {
 			if(status.ok()) {
 				return IPSEC_SUCCESS;
 			} else {
-				std::cout << status.error_code() << ": " << status.error_message()
-					<< std::endl;
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
+
 				return IPSEC_FAILURE;
 			}
 		}
