@@ -760,7 +760,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
-				     "add entry failed err_code[ %d]", err);
+				     "add entry failed err_code[ %d], src_outer = %s, dst_outer = %s", err, src_outer, dst_outer);
 			// Program the same information in both the tables to support
 			// IPSEC ONLY and VXLAN+IPSEC case in one package
                         err = ipsec_outer_ipv4_vxlan_encap_mod_table(IPSEC_TABLE_ADD,

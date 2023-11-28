@@ -123,28 +123,28 @@ enum table_index {
   TX_SA_CLASSIFICATION_TABLE_IDX,
   RX_SA_CLASSIFICATION_TABLE_IDX,
   OUTER_IPV4_ENCAP_MOD_TABLE_IDX,
-  OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX,
   OUTER_IPV4_DECAP_MOD_TABLE_IDX,
   RX_POST_DECRYPT_TABLE_IDX,
+  OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX,
   IPSEC_TX_TRANSPORT_ACTION_IDX,
-  IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX,
   IPSEC_TX_TUNNEL_ACTION_IDX,
   IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX,
   IPSEC_RX_TUNNEL_ACTION_IDX,
   IPSEC_PROTECT_ACTION_IDX,
   ENCAP_OUTER_IPV4_MOD_ACTION_IDX,
-  VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX,
   DECAP_OUTER_IPV4_MOD_ACTION_IDX,
+  VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX,  
   RX_POST_DECRYPT_ACTION_IDX,
+  IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX,  
   TABLE_INDEX_MAX
 };
 
 /* table names is in order with table_index, these are read from config_file */
 static string ipsec_tbl_names[TABLE_INDEX_MAX] = {
   "tx_spd", "tx_sa_classification", "rx_sa_classification",
-  "encap_mod", "decap_mod", "post_decrypt",
+  "encap_mod", "decap_mod", "post_decrypt", "vxlan_encap_mod",
   "tx_transport_action", "tx_tunnel_action", "rx_tunnel_action",
-  "protect_action", "encap_mod_action", "decap_mod_action",
+  "protect_action", "encap_mod_action", "decap_mod_action", "vxlan_encap_mod_action"
   "rx_post_decrypt_action"
 };
 
@@ -543,34 +543,50 @@ class IPSecP4RuntimeClient {
 	  		std::string offload = {1};
 			std::string underlay_false = {0};
 			std::string underlay_true = {1};
+                        std::string offload_mask = {1};
+			std::string underlay_mask = {1};
+			std::string proto_mask = {1};
+			char src_ip_mask[16] = {0}; // AR Nupur: temp decl 
+			char dst_ip_mask[16] = {0}; // AR Nupur: temp decl
+
 			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
 
+			p4::v1::FieldMatch_Ternary *ternary;
 			STREAM_CHANNEL();
 			//offload = to_string((uint32_t)crypto_offload);
 			field_match = table_entry.add_match();
 			field_match->set_field_id(1);
-			field_match->mutable_exact()->set_value(offload);
+                        ternary = field_match->mutable_ternary();
+			ternary->set_value(offload);
+			ternary->set_mask(offload_mask);
 
 			field_match = table_entry.add_match();
 			field_match->set_field_id(2);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(src_ip_addr));
+			ternary = field_match->mutable_ternary();
+                        ternary->set_value(convert_ip_to_str(src_ip_addr));
+                        ternary->set_mask(convert_ip_to_str(src_ip_mask));
 
 			field_match=table_entry.add_match();
 			field_match->set_field_id(3);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
+                        ternary = field_match->mutable_ternary();
+                        ternary->set_value(convert_ip_to_str(dst_ip_addr));
+                        ternary->set_mask(convert_ip_to_str(dst_ip_mask)); //AR Nupur: Check how to pass mask 
 
-			field_match = table_entry.add_match();
-			field_match->set_field_id(4);
-
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(4);
+                        ternary = field_match->mutable_ternary();
 			protocol[0] = proto;
-			field_match->mutable_exact()->set_value(protocol);
+                        ternary->set_value(protocol);
+                        ternary->set_mask(proto_mask);
 
 			if (table_op == IPSEC_TABLE_ADD) {
 				if (tunnel_mode) {
 					// New key (underlay = 0)
 					field_match=table_entry.add_match();
 					field_match->set_field_id(5);
-					field_match->mutable_exact()->set_value(underlay_false);
+					ternary = field_match->mutable_ternary();
+					ternary->set_value(underlay_false);
+					ternary->set_mask(underlay_mask);
 
 					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
 					params = table_entry.mutable_action()->mutable_action()->add_params();
@@ -584,7 +600,9 @@ class IPSecP4RuntimeClient {
 
 					// New key (underlay = 1)
 					field_match->set_field_id(5);
-					field_match->mutable_exact()->set_value(underlay_true);
+
+					ternary->set_value(underlay_true);
+					ternary->set_mask(underlay_mask);
 
 					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX].id);
 					params->set_param_id(1);
@@ -597,7 +615,9 @@ class IPSecP4RuntimeClient {
 					// New key (underlay = 0)
 					field_match=table_entry.add_match();
 					field_match->set_field_id(5);
-					field_match->mutable_exact()->set_value(underlay_false);
+					ternary = field_match->mutable_ternary();
+					ternary->set_value(underlay_false);
+					ternary->set_mask(underlay_mask);
 
 					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id);
 					params = table_entry.mutable_action()->mutable_action()->add_params();
@@ -608,7 +628,8 @@ class IPSecP4RuntimeClient {
 
 					// New key (underlay = 1)
 					field_match->set_field_id(5);
-					field_match->mutable_exact()->set_value(underlay_true);
+					field_match->mutable_ternary()->set_value(underlay_true);
+					ternary->set_mask(underlay_mask);
 
 					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX].id);
 					params->set_param_id(1);
@@ -811,7 +832,7 @@ class IPSecP4RuntimeClient {
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(3);
 				params->set_value(protocol);
-
+/*
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(4);
 				params->set_value(ConvertMacToStr(smac));
@@ -819,7 +840,7 @@ class IPSecP4RuntimeClient {
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(5);
 				params->set_value(ConvertMacToStr(dmac));
-
+*/
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
@@ -876,7 +897,7 @@ class IPSecP4RuntimeClient {
                                 params = table_entry.mutable_action()->mutable_action()->add_params();
                                 params->set_param_id(3);
                                 params->set_value(protocol);
-
+/*
                                 params = table_entry.mutable_action()->mutable_action()->add_params();
                                 params->set_param_id(4);
                                 params->set_value(ConvertMacToStr(smac));
@@ -884,7 +905,7 @@ class IPSecP4RuntimeClient {
                                 params = table_entry.mutable_action()->mutable_action()->add_params();
                                 params->set_param_id(5);
                                 params->set_value(ConvertMacToStr(dmac));
-
+*/
                                 update->set_type(p4::v1::Update::INSERT);
                         } else {
                                 update->set_type(p4::v1::Update::DELETE);
