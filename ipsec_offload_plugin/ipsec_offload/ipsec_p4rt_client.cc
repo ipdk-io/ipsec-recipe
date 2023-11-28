@@ -94,6 +94,15 @@ extern "C" enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 						char inner_smac[16],
 						char inner_dmac[16]);
 
+extern "C" enum ipsec_status ipsec_vxlan_outer_ipv4_encap_mod_table(
+                                                enum ipsec_table_op table_op,
+                                                uint32_t mod_blob_ptr,
+                                                char src_ip_addr[16],
+                                                char dst_ip_addr[16],
+                                                uint32_t proto,
+                                                char smac[16],
+                                                char dmac[16]);
+
 extern "C" enum ipsec_status ipsec_set_pipe(void);
 
 extern "C" enum ipsec_status p4rt_init();
@@ -116,22 +125,26 @@ enum table_index {
   OUTER_IPV4_ENCAP_MOD_TABLE_IDX,
   OUTER_IPV4_DECAP_MOD_TABLE_IDX,
   RX_POST_DECRYPT_TABLE_IDX,
+  OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX,
   IPSEC_TX_TRANSPORT_ACTION_IDX,
   IPSEC_TX_TUNNEL_ACTION_IDX,
+  IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX,
   IPSEC_RX_TUNNEL_ACTION_IDX,
   IPSEC_PROTECT_ACTION_IDX,
   ENCAP_OUTER_IPV4_MOD_ACTION_IDX,
   DECAP_OUTER_IPV4_MOD_ACTION_IDX,
+  VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX,  
   RX_POST_DECRYPT_ACTION_IDX,
+  IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX,  
   TABLE_INDEX_MAX
 };
 
 /* table names is in order with table_index, these are read from config_file */
 static string ipsec_tbl_names[TABLE_INDEX_MAX] = {
   "tx_spd", "tx_sa_classification", "rx_sa_classification",
-  "encap_mod", "decap_mod", "post_decrypt",
+  "encap_mod", "decap_mod", "post_decrypt", "vxlan_encap_mod",
   "tx_transport_action", "tx_tunnel_action", "rx_tunnel_action",
-  "protect_action", "encap_mod_action", "decap_mod_action",
+  "protect_action", "encap_mod_action", "decap_mod_action", "vxlan_encap_mod_action"
   "rx_post_decrypt_action"
 };
 
@@ -207,7 +220,9 @@ int parse_p4info(void) {
 	    tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].name) {
 	    tbl_info[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name) {
+	} else if (table.preamble().name() == tbl_info[OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX].name) {
+            tbl_info[OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX].id = table.preamble().id();
+        } else if (table.preamble().name() == tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name) {
 	    tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_TABLE_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_TABLE_IDX].id = table.preamble().id();
@@ -218,15 +233,21 @@ int parse_p4info(void) {
     for (const auto& table : p4info.actions()) {
         if (table.preamble().name() == tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].name) {
 	    tbl_info[IPSEC_TX_TRANSPORT_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].name) {
+	}else if (table.preamble().name() == tbl_info[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX].name) {
+            tbl_info[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX].id = table.preamble().id();
+        } else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].name) {
 	    tbl_info[IPSEC_TX_TUNNEL_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].name) {
+	} else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX].name) {
+            tbl_info[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX].id = table.preamble().id();
+        } else if (table.preamble().name() == tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].name) {
 	    tbl_info[IPSEC_RX_TUNNEL_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[IPSEC_PROTECT_ACTION_IDX].name) {
 	    tbl_info[IPSEC_PROTECT_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
-	    tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
+	    tbl_info[VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
+	} else if (table.preamble().name() == tbl_info[VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
+            tbl_info[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
+        } else if (table.preamble().name() == tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name) {
 	    tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_ACTION_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_ACTION_IDX].id = table.preamble().id();
@@ -277,20 +298,28 @@ enum ipsec_status p4rt_init() {
 	         p4rt_ctx.info_list[RX_SA_CLASSIFICATION_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[OUTER_IPV4_ENCAP_MOD_TABLE_IDX])
 	         p4rt_ctx.info_list[OUTER_IPV4_ENCAP_MOD_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX])
+	         p4rt_ctx.info_list[OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[OUTER_IPV4_DECAP_MOD_TABLE_IDX])
 	         p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_TABLE_IDX])
 	         p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[IPSEC_TX_TRANSPORT_ACTION_IDX])
 	         p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX])
+	         p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX].name = value;
 	     else if (name == ipsec_tbl_names[IPSEC_TX_TUNNEL_ACTION_IDX])
 	         p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX])
+	         p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX].name = value;
 	     else if (name == ipsec_tbl_names[IPSEC_RX_TUNNEL_ACTION_IDX])
 	         p4rt_ctx.info_list[IPSEC_RX_TUNNEL_ACTION_IDX].name = value;
 	     else if (name == ipsec_tbl_names[IPSEC_PROTECT_ACTION_IDX])
 	         p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].name = value;
 	     else if (name == ipsec_tbl_names[ENCAP_OUTER_IPV4_MOD_ACTION_IDX])
 	         p4rt_ctx.info_list[ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;
+	     else if (name == ipsec_tbl_names[VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX])
+	         p4rt_ctx.info_list[VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;	
 	     else if (name == ipsec_tbl_names[DECAP_OUTER_IPV4_MOD_ACTION_IDX])
 	         p4rt_ctx.info_list[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;
 	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_ACTION_IDX])
@@ -512,43 +541,102 @@ class IPSecP4RuntimeClient {
 			p4::v1::Action_Param *params;
 			std::string protocol={0};
 	  		std::string offload = {1};
+			std::string underlay_false = {0};
+			std::string underlay_true = {1};
+                        std::string offload_mask = {1};
+			std::string underlay_mask = {1};
+			std::string proto_mask = {1};
+			char src_ip_mask[16] = {0}; // AR Nupur: temp decl 
+			char dst_ip_mask[16] = {0}; // AR Nupur: temp decl
+
 			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
 
+			p4::v1::FieldMatch_Ternary *ternary;
 			STREAM_CHANNEL();
 			//offload = to_string((uint32_t)crypto_offload);
 			field_match = table_entry.add_match();
 			field_match->set_field_id(1);
-			field_match->mutable_exact()->set_value(offload);
+                        ternary = field_match->mutable_ternary();
+			ternary->set_value(offload);
+			ternary->set_mask(offload_mask);
 
 			field_match = table_entry.add_match();
 			field_match->set_field_id(2);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(src_ip_addr));
+			ternary = field_match->mutable_ternary();
+                        ternary->set_value(convert_ip_to_str(src_ip_addr));
+                        ternary->set_mask(convert_ip_to_str(src_ip_mask));
 
 			field_match=table_entry.add_match();
 			field_match->set_field_id(3);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
+                        ternary = field_match->mutable_ternary();
+                        ternary->set_value(convert_ip_to_str(dst_ip_addr));
+                        ternary->set_mask(convert_ip_to_str(dst_ip_mask)); //AR Nupur: Check how to pass mask 
 
-			field_match = table_entry.add_match();
-			field_match->set_field_id(4);
-
+                        field_match = table_entry.add_match();
+                        field_match->set_field_id(4);
+                        ternary = field_match->mutable_ternary();
 			protocol[0] = proto;
-			field_match->mutable_exact()->set_value(protocol);
+                        ternary->set_value(protocol);
+                        ternary->set_mask(proto_mask);
 
 			if (table_op == IPSEC_TABLE_ADD) {
-				if (tunnel_mode)
-					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
-				else
-					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id);
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(1);
-				params->set_value(Uint32ToByteStream(offloadid));
-
 				if (tunnel_mode) {
+					// New key (underlay = 0)
+					field_match=table_entry.add_match();
+					field_match->set_field_id(5);
+					ternary = field_match->mutable_ternary();
+					ternary->set_value(underlay_false);
+					ternary->set_mask(underlay_mask);
+
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
+					params = table_entry.mutable_action()->mutable_action()->add_params();
+					params->set_param_id(1);
+					params->set_value(Uint32ToByteStream(offloadid));
 					params = table_entry.mutable_action()->mutable_action()->add_params();
 					params->set_param_id(2);
 					params->set_value(Uint32ToByteStream(tunnel_id));
+
+					update->set_type(p4::v1::Update::INSERT);
+
+					// New key (underlay = 1)
+					field_match->set_field_id(5);
+
+					ternary->set_value(underlay_true);
+					ternary->set_mask(underlay_mask);
+
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_WITH_UNDERLAY_IDX].id);
+					params->set_param_id(1);
+					params->set_value(Uint32ToByteStream(offloadid));
+					params->set_param_id(2);
+					params->set_value(Uint32ToByteStream(tunnel_id));
+
+					update->set_type(p4::v1::Update::INSERT);
+				 } else { //TRANSPORT_MODE
+					// New key (underlay = 0)
+					field_match=table_entry.add_match();
+					field_match->set_field_id(5);
+					ternary = field_match->mutable_ternary();
+					ternary->set_value(underlay_false);
+					ternary->set_mask(underlay_mask);
+
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id);
+					params = table_entry.mutable_action()->mutable_action()->add_params();
+					params->set_param_id(1);
+					params->set_value(Uint32ToByteStream(offloadid));
+
+					update->set_type(p4::v1::Update::INSERT);
+
+					// New key (underlay = 1)
+					field_match->set_field_id(5);
+					field_match->mutable_ternary()->set_value(underlay_true);
+					ternary->set_mask(underlay_mask);
+
+					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_WITH_UNDERLAY_IDX].id);
+					params->set_param_id(1);
+					params->set_value(Uint32ToByteStream(offloadid));
+
+					update->set_type(p4::v1::Update::INSERT);
 				}
-				update->set_type(p4::v1::Update::INSERT);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
 			}
@@ -744,7 +832,7 @@ class IPSecP4RuntimeClient {
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(3);
 				params->set_value(protocol);
-
+/*
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(4);
 				params->set_value(ConvertMacToStr(smac));
@@ -752,7 +840,7 @@ class IPSecP4RuntimeClient {
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(5);
 				params->set_value(ConvertMacToStr(dmac));
-
+*/
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
@@ -772,6 +860,71 @@ class IPSecP4RuntimeClient {
 				return IPSEC_FAILURE;
 			}
 		}
+
+                enum ipsec_status P4runtimeIpsecVxlanOuterIpv4EncapModTable(enum ipsec_table_op table_op,
+                                                                            uint32_t mod_blob_ptr,
+                                                                            char src_ip_addr[16],
+                                                                            char dst_ip_addr[16],
+                                                                            uint32_t proto,
+                                                                            char smac[16],
+                                                                            char dmac[16]) {
+                        TableEntry table_entry;
+                        WriteRequest request;
+                        p4::v1::FieldMatch *field_match=table_entry.add_match();
+                        p4::v1::Update *update = request.add_updates();
+                        WriteResponse reply;
+                        ClientContext context;
+                        p4::v1::Action_Param *params;
+                        std::string protocol={6};
+                        std::string offload = {1};
+
+                        STREAM_CHANNEL();
+                        table_entry.set_table_id(OUTER_IPV4_VXLAN_ENCAP_MOD_TABLE_IDX);
+
+                        field_match->set_field_id(1);
+                        field_match->mutable_exact()->set_value(Uint32ToByteStream(mod_blob_ptr));
+
+                        if (table_op == IPSEC_TABLE_ADD) {
+                                table_entry.mutable_action()->mutable_action()->set_action_id(VXLAN_IPSEC_ENCAP_OUTER_IPV4_MOD_ACTION_IDX);
+                                params = table_entry.mutable_action()->mutable_action()->add_params();
+                                params->set_param_id(1);
+                                params->set_value(convert_ip_to_str(src_ip_addr));
+
+                                params = table_entry.mutable_action()->mutable_action()->add_params();
+                                params->set_param_id(2);
+                                params->set_value(convert_ip_to_str(dst_ip_addr));
+
+                                params = table_entry.mutable_action()->mutable_action()->add_params();
+                                params->set_param_id(3);
+                                params->set_value(protocol);
+/*
+                                params = table_entry.mutable_action()->mutable_action()->add_params();
+                                params->set_param_id(4);
+                                params->set_value(ConvertMacToStr(smac));
+
+                                params = table_entry.mutable_action()->mutable_action()->add_params();
+                                params->set_param_id(5);
+                                params->set_value(ConvertMacToStr(dmac));
+*/
+                                update->set_type(p4::v1::Update::INSERT);
+                        } else {
+                                update->set_type(p4::v1::Update::DELETE);
+                        }
+                        update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
+
+                        request.set_device_id(DEVICE_ID);
+                        request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
+                        request.mutable_election_id()->set_low(ELECTION_ID_LOW);
+
+                        Status status = stub_->Write(&context, request, &reply);
+                        if(status.ok()) {
+                                return IPSEC_SUCCESS;
+                        } else {
+                                std::cout << status.error_code() << ": " << status.error_message()
+                                        << std::endl;
+                                return IPSEC_FAILURE;
+                        }
+                }
 
 		enum ipsec_status P4runtimeIpsecOuterIpv4DecapModTable(enum ipsec_table_op table_op,
 								       uint32_t mod_blob_ptr,
@@ -940,6 +1093,23 @@ enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
 							   proto,
 							   smac,
 							   dmac);
+}
+
+enum ipsec_status ipsec_vxlan_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
+                                                         uint32_t mod_blob_ptr,
+                                                         char src_ip_addr[16],
+                                                         char dst_ip_addr[16],
+                                                         uint32_t proto,
+                                                         char smac[16],
+                                                         char dmac[16]) {
+        IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
+        return client.P4runtimeIpsecVxlanOuterIpv4EncapModTable(table_op,
+                                                                mod_blob_ptr,
+                                                                src_ip_addr,
+                                                                dst_ip_addr,
+                                                                proto,
+                                                                smac,
+                                                                dmac);
 }
 
 enum ipsec_status ipsec_outer_ipv4_decap_mod_table(enum ipsec_table_op table_op,
