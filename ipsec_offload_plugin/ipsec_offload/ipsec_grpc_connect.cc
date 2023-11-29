@@ -265,16 +265,15 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
     }
 
     bool GnmiSubOnChange(std::string path) {
+      ::gnmi::SubscribeResponse resp;
       stream_reader_writer = stub->Subscribe(&ctx_p);
-#if 0  // Currently its done as part of ipsec_fetch_spi()
       ::gnmi::SubscribeRequest req = BuildGnmiSubOnchangeRequest(path);
-      if (ABSL_PREDICT_TRUE(stream_reader_writer->Write(req)))
-        return true;
-      else
+      if (ABSL_PREDICT_TRUE(stream_reader_writer->Write(req))) {
+	 LOGGER->Log("DEBUG: subscribe to the notification \n");
+	 return true;
+      } else
         LOGGER->Log("ERROR: failed to subscribe for notification");
         return false;
-#endif
-	return true;
     }
 
   private:
@@ -307,7 +306,7 @@ static void BuildGnmiDeletePath(::gnmi::Path* path, int offloadid, bool inbound)
 };
 
 std::string getSubscribePath() {
-   return "/ipsec-offload";
+   return "/ipsec-offload/sadb-expire";
 }
 
 std::string getSadAddPath() {
@@ -337,6 +336,7 @@ enum ipsec_status ipsec_subscribe_audit_log() {
 
     IPSecOffloadPluginGnmi client(gnmi_ctx.gnmi_server_addr);
     std::string path = getSubscribePath();
+
     bool response = client.GnmiSubOnChange(path);
     if (response == true) {
         return IPSEC_SUCCESS;
@@ -350,13 +350,16 @@ enum ipsec_status ipsec_fetch_audit_log(char *cq_data, int size) {
     ::gnmi::SubscribeResponse resp;
     std::string value;
 
-    if (stream_reader_writer->Read(&resp) && resp.has_update()) {
-      value = resp.mutable_update()->mutable_update(0)->mutable_val()->string_val();
-      if (value.size() > size)
+    if (stream_reader_writer->Read(&resp) ) {//&& resp.has_update()) {
+      LOGGER->Log("DEBUG: Notif resp \n" + resp.DebugString());
+      if (resp.has_update()) {
+        value = resp.mutable_update()->mutable_update(0)->mutable_val()->string_val();
+        if (value.size() > size)
 	      return IPSEC_FAILURE;
-      memcpy(cq_data, value.c_str(), size);
-      cq_data[value.size()] = '\0';
-      return IPSEC_SUCCESS;
+        memcpy(cq_data, value.c_str(), size);
+        cq_data[value.size()] = '\0';
+        return IPSEC_SUCCESS;
+      }
     }
 
     return IPSEC_FAILURE;
