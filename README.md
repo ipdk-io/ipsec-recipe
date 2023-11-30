@@ -29,7 +29,7 @@ source env_setup_acc.sh
 ./install_dep_packages_acc.sh
 ```
 
-Clone strongSwan and switch to version 5.9.3 (Any version can be used but verification has been completed on v5.9.3)
+Clone strongSwan and switch to version 5.9.3 (Any version can be used but verification has been completed with v5.9.3 on fedora33)
 
 ```bash
 cd ipsec_offload_plugin/
