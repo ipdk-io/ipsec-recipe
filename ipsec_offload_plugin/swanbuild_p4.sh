@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Copyright 2023 Intel Corporation
+# SPDX-License-Identifier: Apache 2.0
+#
+# Script to patch and build strongSwan plugin
+#
 
 ARGUMENT_LIST=(
     "b"
