@@ -5,7 +5,7 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 
 * IPsec recipe is validated only on Intel&reg; IPU E2100 target
 * Refer to https://ipdk.io/documentation/Recipes/InlineIPsec/
-* YANG model for IPsec SAD: https://github.com/ipdk-io/openconfig-public/blob/master/release/models/ipsec/openconfig-ipsec-offload.yang
+* YANG model for IPsec offload: https://github.com/ipdk-io/openconfig-public/blob/master/release/models/ipsec/openconfig-ipsec-offload.yang
 * Reference P4 program to enable IPsec on DPDK target: https://github.com/ipdk-io/networking-recipe/tree/main/p4src/Inline_IPsec
 
 ## strongSwan Integration with Inline Crypto Engine
@@ -13,8 +13,8 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 * The strongSwan configuration files must be configured by user as described in 
 			https://wiki.strongswan.org/projects/strongswan/wiki/UserDocumentation
 * Confirm that the networking-recipe (the `infrap4d` process, which acts as the gRPC server) is running before starting strongSwan services.
-* strongSwan hosts (Host-A<---->Host-B) should be connected to negotiate the keys.
-* The user should follow best practices followed by opensource community for other control plane related configurations.
+* strongSwan hosts (Host-A<---->Host-B) must be connected to negotiate the keys.
+* The user must follow best practices followed by opensource community for other control plane related configurations.
  
 ## Getting Started
 
