@@ -23,7 +23,15 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 
 ### Prerequisites
 
-Install the following prerequisites
+It is assumed that the ES2K IPU SDE dependencies have been installed on the
+system. The list of SDE's dependencies can be found
+in `sde/tools/setup/install_dep.py` file.
+
+Prerequisites and dependencies from stratum-deps and networking-recipe
+are assumed to be installed, since some of those dependencies also apply to this
+module, ipsec-recipe.
+
+Install the following dependencies for building ipsec-recipe.
 
 For Fedora:
 
