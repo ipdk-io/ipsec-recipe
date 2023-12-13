@@ -1,4 +1,6 @@
+
 # IPsec-Recipe
+
 The IPsec recipe is an application that enables strongSwan to use [Infrastructure Application Interface](https://ipdk.io/documentation/Interfaces/InfraApp/), specifically the P4Runtime and OpenConfig gRPCs provided by the [Networking-Recipe](https://github.com/ipdk-io/networking-recipe).
 
 The strongSwan plugin available in this repository implements a policy-based IPsec enablement using security policy database (SPD) and security association database (SAD). The P4Runtime client introduces a programmable IPsec flow using P4 language for the SPD and OpenConfig for SAD configurability.
@@ -9,33 +11,36 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 * Reference P4 program to enable IPsec on DPDK target: https://github.com/ipdk-io/networking-recipe/tree/main/p4src/Inline_IPsec
 
 ## strongSwan Integration with Inline Crypto Engine
+
 * The user should start and stop the strongSwan services as described in strongSwan manual.
-* The strongSwan configuration files must be configured by user as described in 
+* The strongSwan configuration files must be configured by user as described in
 			https://wiki.strongswan.org/projects/strongswan/wiki/UserDocumentation
 * Confirm that the networking-recipe (the `infrap4d` process, which acts as the gRPC server) is running before starting strongSwan services.
 * strongSwan hosts (Host-A<---->Host-B) must be connected to negotiate the keys.
 * The user must follow best practices followed by opensource community for other control plane related configurations.
- 
+
 ## Getting Started
 
 ### Prerequisites
+
 Install the following prerequisites
 
 For Fedora:
 
 ```bash
 dnf -y update && \
-dnf -y install git cmake gcc gcc-c++ patch openssl openssl-devel libatomic libnl3-devel gmp-devel gettext gettext-devel gperf byacc bison libtool autoconf-archive autoconf automake
+dnf -y install gmp-devel gettext gettext-devel gperf byacc bison
 ```
 
 For Ubuntu:
 
 ```bash
 apt -y update && \
-apt install -y git cmake gcc g++ patch openssl libssl-dev libatomic1 libnl-route-3-dev libgmp-dev gettext libgettextpo-dev gperf byacc bison libtool autoconf-archive autoconf automake
+apt install -y libgmp-dev gettext libgettextpo-dev gperf byacc bison
 ```
 
 ### Build IPsec-Recipe
+
 Clone this repository and install the dependencies
 
 ```bash
@@ -68,6 +73,7 @@ Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bi
 Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/security/using-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
 
 Configure strongSwan
+
 * Review the server IP addresses, client certificate filename, client key filename, client CA filename and p4 table/action names (as per p4info.txt file) in `ipsec_offload_plugin/ipsec_offload.conf` file.
 * Copy the configuration file to `/usr/share/stratum`
 * Update the strongSwan configuration files (eg: swanctl.conf). Please refer strongSwan documentation.
