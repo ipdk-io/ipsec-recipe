@@ -8,8 +8,7 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 * YANG model for IPsec SAD: https://github.com/ipdk-io/openconfig-public/blob/master/release/models/ipsec/openconfig-ipsec-offload.yang
 * Reference P4 program to enable IPsec on DPDK target: https://github.com/ipdk-io/networking-recipe/tree/main/p4src/Inline_IPsec
 
-strongSwan Integration with Inline Crypto Engine
-========================================================
+## strongSwan Integration with Inline Crypto Engine
 * The user should start and stop the strongSwan services as described in strongSwan manual.
 * The strongSwan configuration files must be configured by user as described in 
 			https://wiki.strongswan.org/projects/strongswan/wiki/UserDocumentation
@@ -17,9 +16,26 @@ strongSwan Integration with Inline Crypto Engine
 * strongSwan hosts (Host-A<---->Host-B) should be connected to negotiate the keys.
 * The user should follow best practices followed by opensource community for other control plane related configurations.
  
-Getting Started
-===================
+## Getting Started
 
+### Prerequisites
+Install the following prerequisites
+
+For Fedora:
+
+```bash
+dnf -y update && \
+dnf -y install git cmake gcc gcc-c++ patch openssl openssl-devel libatomic libnl3-devel gmp-devel gettext gettext-devel gperf byacc bison libtool autoconf-archive autoconf automake
+```
+
+For Ubuntu:
+
+```bash
+apt -y update && \
+apt install -y git cmake gcc g++ patch openssl libssl-dev libatomic1 libnl-route-3-dev libgmp-dev gettext libgettextpo-dev gperf byacc bison libtool autoconf-archive autoconf automake
+```
+
+### Build IPsec-Recipe
 Clone this repository and install the dependencies
 
 ```bash
@@ -29,7 +45,7 @@ source env_setup_acc.sh
 ./install_dep_packages_acc.sh
 ```
 
-Clone strongSwan and switch to version 5.9.3 (Any version can be used but verification has been completed with v5.9.3 on fedora33)
+Clone strongSwan and switch to version 5.9.3 (any version can be used but verification has been completed with v5.9.3 on Fedora 33)
 
 ```bash
 cd ipsec_offload_plugin/
