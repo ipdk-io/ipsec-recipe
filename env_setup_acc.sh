@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright 2023 Intel Corporation
-# SPDX-License-Identifier: Apache 2.0
+# SPDX-License-Identifier: GPL-3.0-only
 #
 # Script to setup environment variables facilitating IPsec-Recipe compilation
 #
