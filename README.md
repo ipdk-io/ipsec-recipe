@@ -24,12 +24,11 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 ### Prerequisites
 
 It is assumed that the ES2K IPU SDE dependencies have been installed on the
-system. The list of SDE's dependencies can be found
+system. The list of dependencies can be found
 in `sde/tools/setup/install_dep.py` file.
 
-Prerequisites and dependencies from stratum-deps and networking-recipe
-are assumed to be installed, since some of those dependencies also apply to this
-module, ipsec-recipe.
+Prerequisites from stratum-deps and networking-recipe
+are assumed to be installed.
 
 Install the following dependencies for building ipsec-recipe.
 
@@ -37,14 +36,14 @@ For Fedora:
 
 ```bash
 dnf -y update && \
-dnf -y install gmp-devel gettext gettext-devel gperf byacc bison
+dnf -y install gmp-devel gettext gettext-devel gperf byacc bison texlive flex
 ```
 
 For Ubuntu:
 
 ```bash
 apt -y update && \
-apt install -y libgmp-dev gettext libgettextpo-dev gperf byacc bison
+apt install -y libgmp-dev gettext libgettextpo-dev gperf byacc bison texlive flex
 ```
 
 ### Build IPsec-Recipe
