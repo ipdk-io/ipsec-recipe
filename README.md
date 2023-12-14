@@ -27,10 +27,10 @@ It is assumed that the ES2K IPU SDE dependencies have been installed on the
 system. The list of dependencies can be found
 in `sde/tools/setup/install_dep.py` file.
 
-Prerequisites from stratum-deps and networking-recipe
-are assumed to be installed.
+Prerequisites for stratum-deps and networking-recipe
+are assumed to be installed. Some of them also apply to ipsec-recipe.
 
-Install the following dependencies for building ipsec-recipe.
+Install the following packages for building ipsec-recipe.
 
 For Fedora:
 
