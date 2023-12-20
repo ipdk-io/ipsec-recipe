@@ -248,6 +248,7 @@ static void get_proto_bytes(uint32_t offload_id, kernel_ipsec_sa_id_t *id, kerne
 {
 	uint16_t enc_alg;
 	char     key[KEY_BUF_MAX] = {0};
+	uint64_t soft_life;
 
 	/* ICE support AES GCM (0) and GMAC (1) mode, filling ipsec params accordingly
 	 * TODO: need to move it to cypto_mgr
@@ -258,6 +259,7 @@ static void get_proto_bytes(uint32_t offload_id, kernel_ipsec_sa_id_t *id, kerne
 		enc_alg = 1;
 
 	pack_key(data->enc_key.ptr, key, data->enc_key.len);
+	soft_life = data->lifetime->bytes.life - data->lifetime->bytes.jitter;
 
 	snprintf(proto_bytes, PROTO_BYTES_MAX-1, "offload_id:%d,\ndirection:%d,\nreq_id:%d,\n"
 						"spi:%u,\next_seq_num:%d,\nanti_replay_window_size:%d,\n"
@@ -266,7 +268,7 @@ static void get_proto_bytes(uint32_t offload_id, kernel_ipsec_sa_id_t *id, kerne
 						"sa_hard_lifetime {\nbytes:%llu\n},\nsa_soft_lifetime {\nbytes: %llu\n}\n",
 						offload_id, data->inbound, 2, ntohl(id->spi), data->esn, data->replay_window,
 						0, 0, enc_alg, key, data->enc_key.len, data->lifetime->bytes.life,
-						data->lifetime->bytes.jitter);
+						soft_life);
 }
 
 static void fill_entry_selector(entry_selector_t *sel,
