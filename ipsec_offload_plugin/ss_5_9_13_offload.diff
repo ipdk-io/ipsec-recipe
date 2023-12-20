@@ -1,0 +1,57 @@
+diff --git a/ipsec_offload_plugin/ipsec_offload/Makefile.am b/ipsec_offload_plugin/ipsec_offload/Makefile.am
+index 744c74a..9c3cb6a 100644
+--- a/ipsec_offload_plugin/ipsec_offload/Makefile.am
++++ b/ipsec_offload_plugin/ipsec_offload/Makefile.am
+@@ -1,6 +1,9 @@
+ AM_CPPFLAGS = \
+ 	-I$(top_srcdir)/src/libstrongswan \
+-	-I$(top_srcdir)/src/libcharon
++	-I$(top_srcdir)/src/libcharon \
++	-I$(builddir)/gnmi/cpp_out \
++	-I$(builddir)/p4runtime/cpp_out/p4/v1 \
++	-I$(builddir)/p4runtime/cpp_out/
+ 
+ AM_CFLAGS = \
+ 	$(PLUGIN_CFLAGS)
+@@ -14,9 +17,38 @@ endif
+ libstrongswan_ipsec_offload_la_SOURCES = \
+ 	ipsec_offload_plugin.h ipsec_offload_plugin.c \
+ 	ipsec_offload.h ipsec_offload.c \
+-	bfruntime.pb.h bfruntime.pb.cc \
+-	bfruntime.grpc.pb.h bfruntime.grpc.pb.cc \
+-	ipsec_grpc_connect.h ipsec_grpc_connect.cc
++	ipsec_grpc_connect.h ipsec_grpc_connect.cc \
++	log_plugin.cc log_plugin.h \
++	ipsec_p4rt_client.cc
++
++am_libstrongswan_ipsec_offload_la_OBJECTS = ipsec_offload_plugin.lo \
++	ipsec_offload.lo ipsec_grpc_connect.lo log_plugin.lo \
++	ipsec_p4rt_client.lo
++
++AM_LDFLAGS =  -L/root/ipsec-recipe/PLUGIN_DEP_INSTALL/lib -L/root/ipsec-recipe/PLUGIN_DEP_INSTALL/lib64 -lgrpc++_reflection -lgrpc++ -lprotobuf -lgrpc -lz  \
++	             -laddress_sorting -labsl_hash -labsl_city -labsl_raw_hash_set \
++		            -labsl_hashtablez_sampler -labsl_exponential_biased -labsl_statusor -labsl_bad_variant_access \
++			               -lgpr -ldl -lrt -lm -labsl_status -labsl_cord -labsl_str_format_internal -labsl_synchronization \
++				              -labsl_stacktrace -labsl_symbolize -labsl_debugging_internal -labsl_demangle_internal \
++					             -labsl_graphcycles_internal -labsl_malloc_internal -labsl_time -labsl_strings -labsl_throw_delegate \
++						            -labsl_strings_internal -labsl_base -labsl_spinlock_wait -lrt -labsl_int128 -labsl_civil_time -labsl_time_zone \
++							           -labsl_bad_optional_access -labsl_raw_logging_internal -labsl_log_severity -lssl -lcrypto -lpthread -lstdc++
++
++am_libstrongswan_ipsec_offload_la_OBJECTS += \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/gnmi/cpp_out/gnmi/libbf_gnmi_grpc_la-gnmi.grpc.pb.lo	\
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/gnmi/cpp_out/gnmi/libbf_gnmi_protobuf_la-gnmi.pb.lo	\
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/gnmi/cpp_out/gnmi_ext/libbf_gnmi_grpc_la-gnmi_ext.grpc.pb.lo	\
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/gnmi/cpp_out/gnmi_ext/libbf_gnmi_protobuf_la-gnmi_ext.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/p4runtime/cpp_out/p4/v1/libbf_p4runtime_grpc_la-p4runtime.grpc.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/p4runtime/cpp_out/p4/v1/libbf_p4runtime_protobuf_la-p4data.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/p4runtime/cpp_out/p4/v1/libbf_p4runtime_protobuf_la-p4runtime.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/p4runtime/cpp_out/p4/config/v1/libbf_p4runtime_protobuf_la-p4info.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/p4runtime/cpp_out/p4/config/v1/libbf_p4runtime_protobuf_la-p4types.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/third-party/grpc/cpp_out/google/rpc/libbf_google_grpc_la-code.grpc.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/third-party/grpc/cpp_out/google/rpc/libbf_google_grpc_la-status.grpc.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/third-party/grpc/cpp_out/google/rpc/libbf_google_protobuf_la-code.pb.lo \
++	$(top_srcdir)/src/libcharon/plugins/ipsec_offload/third-party/grpc/cpp_out/google/rpc/libbf_google_protobuf_la-status.pb.lo
++
+ 
+ #libstrongswan_intel_ipsec_la_LIBADD = $(top_builddir)/src/libipsec/libipsec.la
+ 
