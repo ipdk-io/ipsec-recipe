@@ -32,12 +32,6 @@ export PKG_CONFIG_PATH=$DEPS_INSTALL/lib/pkgconfig:$DEPS_INSTALL/lib64/pkgconfig
 export C_INCLUDE_PATH=$DEPS_INSTALL/include
 export CPLUS_INCLUDE_PATH=$DEPS_INSTALL/include
 
-# Check if NUM_CORES and NUM_THREADS are already set
-if [[ -n $NUM_CORES && -n $NUM_THREADS ]]; then
-    echo "NUM_CORES and NUM_THREADS already set."
-    exit 0
-fi
-
 # Check if nproc command exists
 if command -v nproc &> /dev/null; then
     NUM_CORES=$(nproc --all)
