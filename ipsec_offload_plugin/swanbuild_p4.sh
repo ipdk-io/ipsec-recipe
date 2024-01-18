@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Copyright 2023 Intel Corporation
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Script to patch and build strongSwan plugin
+#
 
 ARGUMENT_LIST=(
     "b"
@@ -22,24 +28,17 @@ opts=$(getopt \
 eval set --$opts
 
 build=0
-enablegrpc=0
 accsdkdir=0
 PLATFORM="arm"
 DEPS_INSTALL_PATH=""
 
 function error_log() {
-     echo "Build strongswan code with ipsec plugin
-     Usage: swanbuild OPTION(S) ARG
-     or:  swanbuild -t ACC_SDK_DIR [--enable_grpc]  [Downloads strongswan package and build]
-          e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 (builds for ARM)
-          If --enable_grpc option is provided, code will use grpc instead of sockets
-          e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 --enable_grpc (builds for ARM)
-          If building natively, pass native option to -t
-          e.g., swanbuild.sh -t native --enable_grpc (building on same host)
-          e.g., ./swanbuild_p4.sh -t native -o <dependency install dir> --enable_grpc
-     or:  swanbuild -d BUILDDIR [Builds strongswan code in the dir provided]
-          e.g., swanbuild.sh -d ./strongswan-5.9.4 -t /opt/mev/acc/simics-mev-b0-1505
-     VERSION number can be found at: https://download2.strongswan.org/"
+     echo "Help
+     This scripts builds strongswan code with ipsec plugin
+     Usage: swanbuild_p4.sh OPTION(S) ARG
+     e.g. ./swanbuild_p4.sh -t native -o \$DEPS_INSTALL
+     (DEPS_INSTALL env variable exported as part of env_setup_acc.sh, go to ipsec-recipe dir and run source env_setup_acc.sh)
+     or ./swanbuild_p4.sh -t native -o <dependency install dir>"
 	exit
 }
 
@@ -61,25 +60,26 @@ while [[ $# -gt 0 ]]; do
             echo "strongswan dependencies install path is $DEPS_INSTALL_PATH"
             shift 2
             ;;
-		--enable_grpc)
-			enablegrpc=1
-			shift 1
-			;;
 
-		*)
-               if [[ $accsdkdir -ne 1 ]]; then
-                    echo "ERROR: Please provide acc sdk dir path or 'native'"
-                    error_log
-               fi
+         *)
+            if [[ $accsdkdir -ne 1 ]]; then
+                echo "ERROR: Please provide acc sdk dir path or 'native'"
+                error_log
+            fi
 
-			if [[ $accsdkdir -ne 1 && -z $BUILDDIR && $enablegrpc -ne 1 ]]; then
-                    error_log
-			else
-				break
-			fi
+	    if [[ $accsdkdir -ne 1 && -z $BUILDDIR ]]; then
+                error_log
+	    else
+		break
+	    fi
     esac
 done
 
+if [ -z ${DEPS_INSTALL_PATH} ]; then
+      echo "ERROR: DEPS_INSTALL is not set, Please provide dependency install dir OR
+      go to ipsec-recipe dir and run 'source env_setup_acc.sh'"
+      error_log
+fi
 
 if [ $ACC_SDK_DIR == "native" ]; then
      PLATFORM="native"
@@ -89,21 +89,20 @@ elif [ ! -d $ACC_SDK_DIR ]; then
 fi
 #P4OVS_DEPS_INSTALL is a custom set of binaries shared by SDE team.
 #May be docker image need create these dependencies
-if [ $enablegrpc -eq 1 ]; then
-	export BUILD_WITH_GRPC=ON
-     if [ $PLATFORM == "arm" ]; then
-	  export GRPC_LIB_PATH=$DEPS_INSTALL_PATH/lib
-          export GRPC_LIB64_PATH=$DEPS_INSTALL_PATH/lib
-          export GRPC_INCLUDE_PATH=$DEPS_INSTALL_PATH/include
-     else
-        export GRPC_LIB_PATH=$DEPS_INSTALL_PATH/lib
-        export GRPC_LIB64_PATH=$DEPS_INSTALL_PATH/lib64
-     	export GRPC_INCLUDE_PATH=$DEPS_INSTALL_PATH/include
-     fi
 
-     GRPC_DIR=$DEPS_INSTALL_PATH
-     THIRD_PARTY_DIR=$PWD/third-party/
+export BUILD_WITH_GRPC=ON
+if [ $PLATFORM == "arm" ]; then
+  export GRPC_LIB_PATH=$DEPS_INSTALL_PATH/lib
+  export GRPC_LIB64_PATH=$DEPS_INSTALL_PATH/lib
+  export GRPC_INCLUDE_PATH=$DEPS_INSTALL_PATH/include
+else
+  export GRPC_LIB_PATH=$DEPS_INSTALL_PATH/lib
+  export GRPC_LIB64_PATH=$DEPS_INSTALL_PATH/lib64
+  export GRPC_INCLUDE_PATH=$DEPS_INSTALL_PATH/include
 fi
+
+GRPC_DIR=$DEPS_INSTALL_PATH
+THIRD_PARTY_DIR=$PWD/third-party/
 
 DIR=$BUILDDIR
 
@@ -118,6 +117,8 @@ if [ ! -d $DIR ]; then
      echo "ERROR: Invalid directory path!!"
      exit
 fi
+
+set -e
 
 pwd=$PWD
 mkdir -p $pwd/output_$DIR
@@ -310,14 +311,6 @@ if [[ -d $THIRD_PARTY_DIR ]]; then
      cd $OFFLOAD_DIR/$DIR
      echo "================== THIRD-PARTY COMPILATION DONE ===================="
 
-     pushd ../$DIRECTORY
-     PROTO_FILE=bfruntime
-
-     $DEPS_INSTALL_PATH/bin/protoc --cpp_out=. google/rpc/status.proto
-
-     $DEPS_INSTALL_PATH/bin/protoc --cpp_out=. ${PROTO_FILE}.proto
-     $DEPS_INSTALL_PATH/bin/protoc --grpc_out=. --plugin=protoc-gen-grpc=$DEPS_INSTALL_PATH/bin/grpc_cpp_plugin ${PROTO_FILE}.proto
-     popd
 fi
 
 if [[ -n $GRPC_DIR ]]; then
@@ -351,3 +344,5 @@ touch -m -t 201512030000 src/libcharon/plugins/ipsec_offload/Makefile.am
 make clean
 make $NUM_THREADS
 make install
+
+set +e
