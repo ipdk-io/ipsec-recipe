@@ -729,7 +729,7 @@ class IPSecP4RuntimeClient {
 				params->set_value(Uint32ToByteStream(mod_blob_ptr));
 
 				update->set_type(p4::v1::Update::INSERT);
-			} if (table_op == IPSEC_TABLE_MOD) {
+			} else if (table_op == IPSEC_TABLE_MOD) {
 				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
 				params = table_entry.mutable_action()->mutable_action()->add_params();
 				params->set_param_id(1);
