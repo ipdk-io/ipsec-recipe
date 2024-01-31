@@ -10,6 +10,7 @@ if IS_GRPC_ENABLED
 proto_sources = \
 p4/v1/p4runtime.proto \
 p4/v1/p4data.proto \
+p4/v1/p4_role_config.proto \
 p4/config/v1/p4info.proto \
 p4/config/v1/p4types.proto
 
@@ -18,6 +19,8 @@ cpp_out/p4/v1/p4runtime.pb.cc \
 cpp_out/p4/v1/p4runtime.pb.h \
 cpp_out/p4/v1/p4data.pb.cc \
 cpp_out/p4/v1/p4data.pb.h \
+cpp_out/p4/v1/p4_role_config.pb.cc \
+cpp_out/p4/v1/p4_role_config.pb.h \
 cpp_out/p4/config/v1/p4info.pb.cc \
 cpp_out/p4/config/v1/p4info.pb.h \
 cpp_out/p4/config/v1/p4types.pb.cc \
@@ -73,6 +76,7 @@ libbf_p4runtime_grpc_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/cpp_out
 includep4runtimedir = $(includedir)/p4runtime
 nodist_includep4runtime_HEADERS = \
 cpp_out/p4/v1/p4runtime.pb.h \
+cpp_out/p4/v1/p4_role_config.pb.h \
 cpp_out/p4/v1/p4data.pb.h \
 cpp_out/p4/config/v1/p4info.pb.h \
 cpp_out/p4/config/v1/p4types.pb.h \

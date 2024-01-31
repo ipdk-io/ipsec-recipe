@@ -1,6 +1,6 @@
 /******************************************************************
  ******************************************************************
- * Copyright (C) 2000-2002, 2004-2017, 2021-2022 Intel Corporation.
+ * Copyright (C) 2000-2002, 2004-2017, 2021-2024 Intel Corporation.
  *
  *This file is part of ipsec-offload plugin from strongswan.
  *This program is free software; you can redistribute it and/or 
@@ -37,6 +37,8 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <arpa/inet.h>
 #include "log_plugin.h"
+#include "utils.h"
+#include "p4_role_config.pb.h"
 
 using grpc::ClientContext;
 using grpc::Status;
@@ -108,6 +110,8 @@ extern "C" enum ipsec_status p4rt_init();
 #define DEVICE_ID        1
 #define ELECTION_ID_HIGH 1
 #define ELECTION_ID_LOW  0
+#define IPSEC_P4RT_ROLE_NAME "ipsec-ss-plugin"
+#define IPSEC_ROLE_CONFIG_FILE "/usr/share/stratum/ipsec_role_config.pb.txt"
 
 #define UDP_PROTO_NUM  17
 
@@ -160,6 +164,12 @@ static struct p4rt_ctx {
 			stream_channel = stub_->StreamChannel(&context_stream);\
 			auto arbitration = req_stream.mutable_arbitration();\
 			arbitration->set_device_id(DEVICE_ID);\
+			arbitration->mutable_role()->set_name(IPSEC_P4RT_ROLE_NAME);\
+			if(PathExists(IPSEC_ROLE_CONFIG_FILE)) {\
+				stratum::P4RoleConfig role_config;\
+				if(ReadProtoFromTextFile(IPSEC_ROLE_CONFIG_FILE, &role_config) == 0)\
+    				arbitration->mutable_role()->mutable_config()->PackFrom(role_config);\
+			}\
 			arbitration->mutable_election_id()->set_high(ELECTION_ID_HIGH);\
 			arbitration->mutable_election_id()->set_low(ELECTION_ID_LOW);\
 			if(!stream_channel->Write(req_stream))\
