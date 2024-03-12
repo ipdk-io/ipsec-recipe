@@ -42,6 +42,18 @@ cd -
 Build strongSwan
 
 ```bash
+Note: The strongswan and the plugin gets only info on IP(L3) and L4 layer. It don't have
+any info on L2 mac addresses. Since in TUNNEL mode we do have a provision to add/delete
+new MAC headers along with IP header, We have to use some manual MAC configuration.
+This manual configurations are only needed for standalone IPSec recipe. Once IPSec and
+networking recipe are integrated the MAC learning will be automatic.
+
+Search following strings and change the value of inner_smac(MAC address of the tunnel
+interface on local host) and inner_dmac(MAC address of the tunnel interface on remote host)
+accordingly in the file "ipsec_offload_plugin/ipsec_offload/ipsec_offload.c"
+inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
+inner_dmac[16] = {0x84, 0x16, 0x0c, 0xba, 0x90, 0xf0};
+
 ./swanbuild_p4.sh -t native -o $DEPS_INSTALL --enable_grpc
 ```
 
