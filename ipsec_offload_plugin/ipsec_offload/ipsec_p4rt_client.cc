@@ -688,7 +688,7 @@ class IPSecP4RuntimeClient {
 			p4::v1::FieldMatch_Ternary *ternary;
 
 			STREAM_CHANNEL();
-	  		std::string offload = {0};
+			std::string offload = {1};
 	  		std::string offload_mask = {1};
 	  		std::string crypt_status = {0};
 	  		std::string crypt_status_mask = {1};
