@@ -56,6 +56,9 @@ extern "C" enum ipsec_status ipsec_tx_spd_table(enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
 						char  mask[16],
 						uint32_t match_priority);
+extern "C" enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
+						char dst_ip_addr[16],
+						uint8_t proto);
 extern "C" enum ipsec_status ipsec_tx_sa_classification_table(
 						enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
@@ -71,6 +74,7 @@ extern "C" enum ipsec_status ipsec_rx_sa_classification_table(
 						char src_ip_addr[16],
 						uint32_t spi,
 						uint32_t offloadid);
+/*
 extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
 						      enum ipsec_table_op table_op,
 						      char crypto_offload,
@@ -79,6 +83,15 @@ extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
 						      char dst_ip_addr[16],
 						      char dst_ip_mask[16],
 						      uint32_t match_priority,
+						      uint32_t mod_blob_ptr);
+*/
+// For SEM
+extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
+						      enum ipsec_table_op table_op,
+						      char crypto_offload,
+						      char crypto_status,
+						      uint16_t crypt_tag,
+						      char dst_ip_addr[16],
 						      uint32_t mod_blob_ptr);
 extern "C" enum ipsec_status ipsec_outer_ipv4_encap_mod_table(
 						enum ipsec_table_op table_op,
@@ -93,7 +106,8 @@ extern "C" enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 						uint32_t mod_blob_ptr,
 						char inner_smac[16],
 						char inner_dmac[16]);
-
+extern "C" enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
+                                                   uint32_t tunnel_id);
 extern "C" enum ipsec_status ipsec_set_pipe(void);
 
 extern "C" enum ipsec_status p4rt_init();
@@ -113,11 +127,13 @@ extern "C" enum ipsec_status p4rt_init();
 
 enum table_index {
   IPSEC_TX_SPD_TABLE_IDX,
+  IPSEC_SPD_TABLE_IDX,
   TX_SA_CLASSIFICATION_TABLE_IDX,
   RX_SA_CLASSIFICATION_TABLE_IDX,
   OUTER_IPV4_ENCAP_MOD_TABLE_IDX,
   OUTER_IPV4_DECAP_MOD_TABLE_IDX,
   RX_POST_DECRYPT_TABLE_IDX,
+  IPSEC_TUNNEL_TABLE_IDX,
   IPSEC_TX_TRANSPORT_ACTION_IDX,
   IPSEC_TX_TRANSPORT_UDP_ACTION_IDX,
   IPSEC_TX_TUNNEL_ACTION_IDX,
@@ -126,6 +142,7 @@ enum table_index {
   ENCAP_OUTER_IPV4_MOD_ACTION_IDX,
   DECAP_OUTER_IPV4_MOD_ACTION_IDX,
   RX_POST_DECRYPT_ACTION_IDX,
+  IPSEC_TX_TUNNEL_MOD_ACTION_IDX,
   TABLE_INDEX_MAX
 };
 
@@ -204,7 +221,9 @@ int parse_p4info(void) {
     for (const auto& table : p4info.tables()) {
         if (table.preamble().name() == tbl_info[IPSEC_TX_SPD_TABLE_IDX].name) {
 	    tbl_info[IPSEC_TX_SPD_TABLE_IDX].id = table.preamble().id();
-	} else if (table.preamble().name() == tbl_info[TX_SA_CLASSIFICATION_TABLE_IDX].name) {
+	} else if (table.preamble().name() == tbl_info[IPSEC_SPD_TABLE_IDX].name) {
+            tbl_info[IPSEC_SPD_TABLE_IDX].id = table.preamble().id();
+        } else if (table.preamble().name() == tbl_info[TX_SA_CLASSIFICATION_TABLE_IDX].name) {
 	    tbl_info[TX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].name) {
 	    tbl_info[RX_SA_CLASSIFICATION_TABLE_IDX].id = table.preamble().id();
@@ -214,7 +233,9 @@ int parse_p4info(void) {
 	    tbl_info[OUTER_IPV4_DECAP_MOD_TABLE_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_TABLE_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_TABLE_IDX].id = table.preamble().id();
-	}
+	} else if (table.preamble().name() == tbl_info[IPSEC_TUNNEL_TABLE_IDX].name) {
+            tbl_info[IPSEC_TUNNEL_TABLE_IDX].id = table.preamble().id();
+        }
     }
 
     /* Iterate over the table and store the Ids in info list */
@@ -235,7 +256,9 @@ int parse_p4info(void) {
 	    tbl_info[DECAP_OUTER_IPV4_MOD_ACTION_IDX].id = table.preamble().id();
 	} else if (table.preamble().name() == tbl_info[RX_POST_DECRYPT_ACTION_IDX].name) {
 	    tbl_info[RX_POST_DECRYPT_ACTION_IDX].id = table.preamble().id();
-	}
+	} else if (table.preamble().name() == tbl_info[IPSEC_TX_TUNNEL_MOD_ACTION_IDX].name) {
+            tbl_info[IPSEC_TX_TUNNEL_MOD_ACTION_IDX].id = table.preamble().id();
+        }
     }
 
     LOGGER->Log("DEBUG: %s: p4 table NAME : ID for IPsec SDP", __func__);
@@ -276,6 +299,8 @@ enum ipsec_status p4rt_init() {
 	         p4rt_ctx.ca_cert = value;
 	     else if (name == ipsec_tbl_names[IPSEC_TX_SPD_TABLE_IDX])
 	         p4rt_ctx.info_list[IPSEC_TX_SPD_TABLE_IDX].name = value;
+	     else if (name == ipsec_tbl_names[IPSEC_SPD_TABLE_IDX])
+                 p4rt_ctx.info_list[IPSEC_SPD_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[TX_SA_CLASSIFICATION_TABLE_IDX])
 	         p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[RX_SA_CLASSIFICATION_TABLE_IDX])
@@ -286,6 +311,8 @@ enum ipsec_status p4rt_init() {
 	         p4rt_ctx.info_list[OUTER_IPV4_DECAP_MOD_TABLE_IDX].name = value;
 	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_TABLE_IDX])
 	         p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].name = value;
+             else if (name == ipsec_tbl_names[IPSEC_TUNNEL_TABLE_IDX])
+                 p4rt_ctx.info_list[IPSEC_TUNNEL_TABLE_IDX].name = value;	     
 	     else if (name == ipsec_tbl_names[IPSEC_TX_TRANSPORT_ACTION_IDX])
 	         p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].name = value;
 	     else if (name == ipsec_tbl_names[IPSEC_TX_TRANSPORT_UDP_ACTION_IDX])
@@ -302,6 +329,8 @@ enum ipsec_status p4rt_init() {
 	         p4rt_ctx.info_list[DECAP_OUTER_IPV4_MOD_ACTION_IDX].name = value;
 	     else if (name == ipsec_tbl_names[RX_POST_DECRYPT_ACTION_IDX])
 	         p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].name = value;
+             else if (name == ipsec_tbl_names[IPSEC_TX_TUNNEL_MOD_ACTION_IDX])
+                 p4rt_ctx.info_list[IPSEC_TX_TUNNEL_MOD_ACTION_IDX].name = value;
          }
 	 cFile.close();
      }
@@ -510,6 +539,66 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
+		enum ipsec_status P4runtimeIpsecSpdTable(enum ipsec_table_op table_op,
+							char dst_ip_addr[16],
+							uint8_t proto) {
+			TableEntry table_entry;
+			WriteRequest request;
+			p4::v1::FieldMatch *field_match;
+			p4::v1::Update *update = request.add_updates();
+			WriteResponse reply;
+			ClientContext context;
+			std::string protocol={0};
+
+			STREAM_CHANNEL();
+
+			table_entry.set_table_id(p4rt_ctx.info_list[IPSEC_SPD_TABLE_IDX].id);
+
+			field_match=table_entry.add_match();
+			field_match->set_field_id(1);
+
+			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
+
+			field_match=table_entry.add_match();
+			field_match->set_field_id(2);
+
+			protocol[0] = proto;
+			field_match->mutable_exact()->set_value(protocol);
+
+
+			if (table_op == IPSEC_TABLE_ADD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::INSERT);
+			} else if (table_op == IPSEC_TABLE_MOD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_PROTECT_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::MODIFY);
+
+			} else {
+				update->set_type(p4::v1::Update::DELETE);
+			}
+
+			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
+
+			request.set_device_id(DEVICE_ID);
+			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
+			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
+
+			Status status = stub_->Write(&context, request, &reply);
+			if(status.ok()) {
+				return IPSEC_SUCCESS;
+			} else {
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
+				return IPSEC_FAILURE;
+			}
+		}
+
 		enum ipsec_status P4runtimeIpsecTxSaClassificationTable(enum ipsec_table_op table_op,
 									char dst_ip_addr[16],
 									char src_ip_addr[16],
@@ -612,6 +701,56 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
+// New table for 3rd pass - Program this only in case of tunnel mode
+		enum ipsec_status P4runtimeIpsecTunnelIdTable(enum ipsec_table_op table_op,
+                                		                  uint32_t tunnel_id) {
+			TableEntry table_entry;
+			WriteRequest request;
+			p4::v1::FieldMatch *field_match;
+			p4::v1::Update *update = request.add_updates();
+			WriteResponse reply;
+			ClientContext context;
+			p4::v1::Action_Param *params;
+			table_entry.set_table_id(p4rt_ctx.info_list[IPSEC_TUNNEL_TABLE_IDX].id);
+
+			STREAM_CHANNEL();
+			field_match = table_entry.add_match();
+			field_match->set_field_id(1);
+			field_match->mutable_exact()->set_value(Uint32ToByteStream(tunnel_id));
+
+			if (table_op == IPSEC_TABLE_ADD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_MOD_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::INSERT);
+			} else if (table_op == IPSEC_TABLE_MOD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::MODIFY);
+			} else {
+				update->set_type(p4::v1::Update::DELETE);
+			}
+
+			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
+
+			request.set_device_id(DEVICE_ID);
+			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
+			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
+
+			Status status = stub_->Write(&context, request, &reply);
+			if(status.ok()) {
+				return IPSEC_SUCCESS;
+			} else {
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
+
+				return IPSEC_FAILURE;
+			}
+		}
+
 		enum ipsec_status P4runtimeIpsecRxSaClassificationTable(enum ipsec_table_op table_op,
 									char dst_ip_addr[16],
 									char src_ip_addr[16],
@@ -670,6 +809,8 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
+/*
+RxPostDecrypt ~ IpsecTunnelTermTable -  WCM. We want to change it to SEM
 		enum ipsec_status P4runtimeIpsecRxPostDecryptTable(enum ipsec_table_op table_op,
 								   char crypto_offload,
 								   char crypto_status,
@@ -762,7 +903,81 @@ class IPSecP4RuntimeClient {
 				return IPSEC_FAILURE;
 			}
 		}
+*/
 
+
+//RxPostDecrypt ~ IpsecTunnelTermTable -  New code change to SEM
+		enum ipsec_status P4runtimeIpsecRxPostDecryptTable(enum ipsec_table_op table_op,
+								   char crypto_offload,
+								   char crypto_status,
+								   uint16_t crypto_tag,
+								   char dst_ip_addr[16],
+								   uint32_t mod_blob_ptr) {
+			TableEntry table_entry;
+			WriteRequest request;
+			p4::v1::FieldMatch *field_match;
+			p4::v1::Update *update = request.add_updates();
+			WriteResponse reply;
+			ClientContext context;
+			p4::v1::Action_Param *params;
+
+			STREAM_CHANNEL();
+  		std::string offload = {0};
+  		std::string crypt_status = {0};
+
+			table_entry.set_table_id(p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].id);
+
+			field_match = table_entry.add_match();
+			field_match->set_field_id(1);
+			field_match->mutable_exact()->set_value(crypt_status);
+
+
+			field_match = table_entry.add_match();
+			field_match->set_field_id(2);
+			field_match->mutable_exact()->set_value(offload);
+
+
+			field_match = table_entry.add_match();
+			field_match->set_field_id(3);
+			field_match->mutable_exact()->set_value(Uint32ToByteStream(crypto_tag));
+
+			field_match = table_entry.add_match();
+			field_match->set_field_id(4);
+			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
+
+
+			if (table_op == IPSEC_TABLE_ADD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
+
+				update->set_type(p4::v1::Update::INSERT);
+			} else if (table_op == IPSEC_TABLE_MOD) {
+				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
+				update->set_type(p4::v1::Update::MODIFY);
+			} else {
+				update->set_type(p4::v1::Update::DELETE);
+			}
+			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
+
+			request.set_device_id(DEVICE_ID);
+			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
+			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
+
+			Status status = stub_->Write(&context, request, &reply);
+			if(status.ok()) {
+				return IPSEC_SUCCESS;
+			} else {
+				if (!status.error_details().empty())
+					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
+						    status.error_code(), status.error_message().c_str(),
+						    status.error_details().c_str());
+
+				if (status.error_code() == 2) {
+					return IPSEC_DUP_ENTRY;
+				}
+
+				return IPSEC_FAILURE;
+			}
+		}
 
 		enum ipsec_status P4runtimeIpsecOuterIpv4EncapModTable(enum ipsec_table_op table_op,
 								       uint32_t mod_blob_ptr,
@@ -928,6 +1143,14 @@ enum ipsec_status ipsec_tx_spd_table(enum ipsec_table_op table_op,
 	return client.P4runtimeIpsecTxSpdTable(table_op, dst_ip_addr, mask, match_priority);
 }
 
+enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
+				     char dst_ip_addr[16],
+				     uint8_t proto) {
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
+
+	return client.P4runtimeIpsecSpdTable(table_op, dst_ip_addr, proto);
+}
+
 enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 						   char dst_ip_addr[16],
                                                    char src_ip_addr[16],
@@ -945,6 +1168,13 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 							    tunnel_id,
 							    proto,
 							    tunnel_mode);
+}
+
+enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
+                                        uint32_t tunnel_id) {
+	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
+	return client.P4runtimeIpsecTunnelIdTable(table_op,
+		                               tunnel_id);
 }
 
 enum ipsec_status ipsec_rx_sa_classification_table(enum ipsec_table_op table_op,
@@ -966,8 +1196,6 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 					      char crypto_status,
 					      uint16_t crypto_tag,
 					      char dst_ip_addr[16],
-					      char dst_ip_mask[16],
-					      uint32_t match_priority,
 					      uint32_t mod_blob_ptr) {
 
 	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
@@ -977,8 +1205,6 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 						       crypto_status,
 						       crypto_tag,
 						       dst_ip_addr,
-						       dst_ip_mask,
-						       match_priority,
 						       mod_blob_ptr);
 }
 
