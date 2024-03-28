@@ -148,6 +148,7 @@ ifeq ($(BUILD_WITH_GRPC), ON)
 am_libstrongswan_ipsec_offload_la_OBJECTS += \
 	ipsec_grpc_connect.lo \
 	ipsec_p4rt_client.lo \
+	utils.lo \
 	log_plugin.lo
 endif
 am_libstrongswan_ipsec_offload_la_OBJECTS += \
@@ -191,6 +192,7 @@ ifeq ($(BUILD_WITH_GRPC), ON)
 am__depfiles_remade += \
 	./$(DEPDIR)/ipsec_grpc_connect.Plo \
 	./$(DEPDIR)/ipsec_p4rt_client.Plo \
+	./$(DEPDIR)/utils.Plo \
 	./$(DEPDIR)/log_plugin.Plo
 endif
 am__mv = mv -f
@@ -521,7 +523,7 @@ libstrongswan_ipsec_offload_la_SOURCES = \
 ifeq ($(BUILD_WITH_GRPC), ON)
 libstrongswan_ipsec_offload_la_SOURCES += \
 	ipsec_grpc_connect.h ipsec_grpc_connect.cc \
-	ipsec_p4rt_client.cc log_plugin.h log_plugin.cc
+	ipsec_p4rt_client.cc utils.cc utils.h log_plugin.h log_plugin.cc
 endif
 
 #libstrongswan_intel_ipsec_la_LIBADD = $(top_builddir)/src/libipsec/libipsec.la
@@ -622,6 +624,7 @@ ifeq ($(BUILD_WITH_GRPC), ON)
 #@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bfruntime.grpc.pb.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipsec_grpc_connect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipsec_p4rt_client.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/utils.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log_plugin.Plo@am__quote@
 endif
 
