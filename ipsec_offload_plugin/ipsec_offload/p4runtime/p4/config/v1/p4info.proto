@@ -60,7 +60,7 @@ message PkgInfo {
   // Miscellaneous metadata, free-form; a way to extend PkgInfo
   repeated string annotations = 4;
   // Optional. If present, the location of `annotations[i]` is given by
- // `annotation_locations[i]`.
+  // `annotation_locations[i]`.
   repeated SourceLocation annotation_locations = 10;
   // the target architecture, e.g. "psa"
   string arch = 5;
@@ -68,7 +68,8 @@ message PkgInfo {
   string organization = 6;
   // contact info for support,e.g. "tech-support@acme.org"
   string contact = 7;
-  // url for more information, e.g. "http://support.p4.org/ref/p4/switch.p4_v1.0"
+  // url for more information, e.g.
+  // "http://support.p4.org/ref/p4/switch.p4_v1.0"
   string url = 8;
   // Miscellaneous metadata, structured; a way to extend PkgInfo
   repeated StructuredAnnotation structured_annotations = 9;
@@ -105,8 +106,10 @@ message P4Ids {
 
     // externs for other architectures (vendor extensions)
     OTHER_EXTERNS_START = 0x80;
-    MATCH_VALUE_LOOKUP_TABLE = 0x81;
-    TERNARY_MATCH_LOOKUP_TABLE = 0x82;
+    // Please note that the below extensions are only for ES2100
+    // and are subject to removal later
+    PACKET_MOD_METER = 0x85;
+    DIRECT_PACKET_MOD_METER = 0x86;
 
     // max value for an unsigned 8-bit byte
     MAX = 0xff;
@@ -138,7 +141,7 @@ message Preamble {
   string alias = 3;
   repeated string annotations = 4;
   // Optional. If present, the location of `annotations[i]` is given by
- // `annotation_locations[i]`.
+  // `annotation_locations[i]`.
   repeated SourceLocation annotation_locations = 7;
   // Documentation of the entity
   Documentation doc = 5;
@@ -190,18 +193,6 @@ message MatchField {
   repeated StructuredAnnotation structured_annotations = 9;
 }
 
-message MatchValueLookupTable {
-  p4.config.v1.Preamble preamble = 1;
-  repeated p4.config.v1.MatchField match_fields = 2;
-  message Param {
-    uint32 id = 1;
-    string name = 2;
-    uint32 bitwidth = 3;
-  }
-  repeated Param params = 3;
-  uint32 size = 4;
-}
-
 message Table {
   Preamble preamble = 1;
   repeated MatchField match_fields = 2;
@@ -230,8 +221,18 @@ message Table {
   }
   // is idle timeout supported for this table?
   IdleTimeoutBehavior idle_timeout_behavior = 9;
-  // table with static P4 entries, cannot be modified at runtime
+  // True if and only if the table's entries are immutable,
+  // i.e. defined using the 'const entries' table property in the P4
+  // source code, and thus entries cannot be deleted, modified, or
+  // inserted at run time.
   bool is_const_table = 10;
+  // True if and only if the table has initial entries defined using
+  // the 'entries' table property in the P4 source code, either with
+  // or without the 'const' qualifier on 'entries', and there is at
+  // least one entry in that list.  This field is false if the list of
+  // entries is empty in the P4 source code.
+  // Added in 1.4.0.
+  bool has_initial_entries = 11;
   // architecture-specific table properties which are not part of the core P4
   // language or of the PSA architecture.
   google.protobuf.Any other_properties = 100;
@@ -248,7 +249,7 @@ message ActionRef {
   Scope scope = 3;
   repeated string annotations = 2;
   // Optional. If present, the location of `annotations[i]` is given by
- // `annotation_locations[i]`.
+  // `annotation_locations[i]`.
   repeated SourceLocation annotation_locations = 5;
   repeated StructuredAnnotation structured_annotations = 4;
 }
@@ -278,12 +279,34 @@ message ActionProfile {
   repeated uint32 table_ids = 2;
   // true iff the action profile used dynamic selection
   bool with_selector = 3;
-  // max number of weighted member entries in action profile (across all
-  // selector groups, if the action profile has a selector)
+  // max number of member entries across all groups if the action profile does
+  // not have a selector. Otherwise, semantics as specified by
+  // `selector_size_semantics` below.
   int64 size = 4;
-  // max number of weighted member entries in any given selector group, or 0 if
-  // the action profile does not have a selector
+  // 0 if the action profile does not have a selector. Otherwise, semantics as
+  // specified by `selector_size_semantics` below.
   int32 max_group_size = 5;
+
+  // indicates that `size` and `max_group_size` represent the maximum sum of
+  // weights that can be present across all selector groups and within a
+  // single selector group respectively.
+  message SumOfWeights {}
+
+  // indicates that `size` and `max_group_size` represent the maximum number
+  // of members that can be present across all selector groups and within a
+  // single selector group respectively.
+  message SumOfMembers {
+    // the maximum weight of each individual member in a group.
+    optional int32 max_member_weight = 1;
+  }
+
+  // specifies the semantics of `size` and `max_group_size` above
+  oneof selector_size_semantics {
+    // group size is the sum of the group's weights.
+    SumOfWeights sum_of_weights = 6;
+    // group size is the sum of the group's members.
+    SumOfMembers sum_of_members = 7;
+  }
 }
 
 message CounterSpec {
@@ -387,4 +410,16 @@ message Register {
 message Digest {
   Preamble preamble = 1;
   P4DataTypeSpec type_spec = 2;
+}
+
+message PacketModMeter {
+  Preamble preamble = 1;
+  MeterSpec spec = 2;
+  int32 size = 3;
+  uint32 index_width = 4;
+}
+
+message DirectPacketModMeter {
+  Preamble preamble = 1;
+  MeterSpec spec = 2;
 }
