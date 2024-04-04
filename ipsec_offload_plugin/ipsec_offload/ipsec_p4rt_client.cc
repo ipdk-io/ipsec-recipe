@@ -774,14 +774,6 @@ class IPSecP4RuntimeClient {
 		                        field_match->mutable_exact()->set_value(is_tunnel);
 					table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
 					update->set_type(p4::v1::Update::INSERT);
-					update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-					Status status = stub_->Write(&context, request, &reply);
-
-					//Transport mode with encapsulation
-					is_tunnel = {1};
-					field_match->mutable_exact()->set_value(is_tunnel);
-					table_entry.mutable_action()->mutable_action()->set_action_id(transport_underlay_action_id);
-					update->set_type(p4::v1::Update::INSERT);
 				}
 			} else if (table_op == IPSEC_TABLE_MOD) {
                                 if (tunnel_mode) {
@@ -799,14 +791,6 @@ class IPSecP4RuntimeClient {
                                         field_match->mutable_exact()->set_value(is_tunnel);
                                         table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
                                         update->set_type(p4::v1::Update::MODIFY);
-					update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-					Status status = stub_->Write(&context, request, &reply);
-
-	                                //Transport mode with encapsulation
-                                        is_tunnel = {1};
-                                        field_match->mutable_exact()->set_value(is_tunnel);
-                                        table_entry.mutable_action()->mutable_action()->set_action_id(transport_underlay_action_id);
-                                        update->set_type(p4::v1::Update::MODIFY);				
 				}					
 			} else {
                                 if (tunnel_mode) {
@@ -818,12 +802,6 @@ class IPSecP4RuntimeClient {
                                         is_tunnel = {0};
                                         field_match->mutable_exact()->set_value(is_tunnel);
                                         update->set_type(p4::v1::Update::DELETE);
-                                        update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-                                        Status status = stub_->Write(&context, request, &reply);
-
-                                        //Transport mode with encapsulation
-                                        is_tunnel = {1};
-                                        field_match->mutable_exact()->set_value(is_tunnel);
                                 }
 				
 				update->set_type(p4::v1::Update::DELETE);

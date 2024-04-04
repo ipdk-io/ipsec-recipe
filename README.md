@@ -64,7 +64,7 @@ Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bi
 Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/security/using-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
 
 Configure strongSwan
-* Review the server IP addresses, client certificate filename, client key filename, client CA filename and p4 table/action names (as per p4info.txt file) in `ipsec_offload_plugin/ipsec_offload.conf` file.
+* Review the server IP addresses, client certificate filename, client key filename, client CA filename and p4 table/action names (as per p4info.txt file) in `ipsec_offload_plugin/ipsec_offload.conf` file. When using combined_recipe with linux networking V3, use `ipsec_offload_plugin/combined_rcp_ipsec_offload.conf` instead.
 * Copy the configuration file to `/usr/share/stratum`
 * Update the strongSwan configuration files (eg: swanctl.conf). Please refer strongSwan documentation.
 * Update the system date and stop StrongSwan service (systemctl stop strongswan.service)
