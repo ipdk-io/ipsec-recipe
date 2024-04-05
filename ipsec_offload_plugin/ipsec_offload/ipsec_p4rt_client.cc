@@ -75,26 +75,14 @@ extern "C" enum ipsec_status ipsec_rx_sa_classification_table(
 						char src_ip_addr[16],
 						uint32_t spi,
 						uint32_t offloadid);
-#ifdef STANDALONE_IPSEC_RECIPE
 extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
-						      enum ipsec_table_op table_op,
-						      char crypto_offload,
-						      char crypto_status,
-						      uint16_t crypt_tag,
-						      char dst_ip_addr[16],
-						      char dst_ip_mask[16],
-						      uint32_t match_priority,
-						      uint32_t mod_blob_ptr);
-#else
-extern "C" enum ipsec_status ipsec_rx_post_decrypt_table(
-						      enum ipsec_table_op table_op,
-						      char crypto_offload,
-						      char crypto_status,
-						      uint16_t crypt_tag,
-						      char src_ip_addr[16],
-						      char dst_ip_addr[16],
-						      uint32_t mod_blob_ptr);
-#endif
+					      enum ipsec_table_op table_op,
+					      char crypto_offload,
+					      char crypto_status,
+					      uint16_t crypt_tag,
+					      char src_ip_addr[16],
+					      char dst_ip_addr[16],
+					      uint32_t mod_blob_ptr);
 extern "C" enum ipsec_status ipsec_outer_ipv4_encap_mod_table(
 						enum ipsec_table_op table_op,
 						uint32_t mod_blob_ptr,
@@ -615,110 +603,7 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
-#ifdef STANDALONE_IPSEC_RECIPE
 		enum ipsec_status P4runtimeIpsecTxSaClassificationTable(enum ipsec_table_op table_op,
-									char dst_ip_addr[16],
-									char src_ip_addr[16],
-									char crypto_offload,
-									uint32_t offloadid,
-									uint32_t tunnel_id,
-									uint8_t proto,
-									bool tunnel_mode) {
-			TableEntry table_entry;
-			WriteRequest request;
-			p4::v1::FieldMatch *field_match;
-			p4::v1::Update *update = request.add_updates();
-			WriteResponse reply;
-			ClientContext context;
-			p4::v1::Action_Param *params;
-			std::string protocol={0};
-	  		std::string offload = {1};
-			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
-			uint32_t transport_action_id;
-
-			STREAM_CHANNEL();
-			//offload = to_string((uint32_t)crypto_offload);
-			field_match = table_entry.add_match();
-			field_match->set_field_id(1);
-			field_match->mutable_exact()->set_value(offload);
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(2);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(src_ip_addr));
-
-			field_match=table_entry.add_match();
-			field_match->set_field_id(3);
-			field_match->mutable_exact()->set_value(convert_ip_to_str(dst_ip_addr));
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(4);
-
-			if (proto == UDP_PROTO_NUM)
-				transport_action_id = p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_UDP_ACTION_IDX].id;
-			else
-				transport_action_id = p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id;
-
-			protocol[0] = proto;
-			field_match->mutable_exact()->set_value(protocol);
-
-			if (table_op == IPSEC_TABLE_ADD) {
-				if (tunnel_mode)
-					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
-				else
-					table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(1);
-				params->set_value(Uint32ToByteStream(offloadid));
-
-				if (tunnel_mode) {
-					params = table_entry.mutable_action()->mutable_action()->add_params();
-					params->set_param_id(2);
-					params->set_value(Uint32ToByteStream(tunnel_id));
-				}
-				update->set_type(p4::v1::Update::INSERT);
-			} else if (table_op == IPSEC_TABLE_MOD) {
-				if (tunnel_mode)
-					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
-				else
-					table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(1);
-				params->set_value(Uint32ToByteStream(offloadid));
-
-				if (tunnel_mode) {
-					params = table_entry.mutable_action()->mutable_action()->add_params();
-					params->set_param_id(2);
-					params->set_value(Uint32ToByteStream(tunnel_id));
-				}
-				update->set_type(p4::v1::Update::MODIFY);
-			} else {
-				update->set_type(p4::v1::Update::DELETE);
-			}
-
-			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-
-			request.set_device_id(DEVICE_ID);
-			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
-			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
-
-			Status status = stub_->Write(&context, request, &reply);
-			if(status.ok()) {
-				return IPSEC_SUCCESS;
-			} else {
-				if (!status.error_details().empty())
-					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
-						    status.error_code(), status.error_message().c_str(),
-						    status.error_details().c_str());
-
-				if (status.error_code() == 2) {
-					return IPSEC_DUP_ENTRY;
-				}
-
-				return IPSEC_FAILURE;
-			}
-		}
-#else		
-		enum ipsec_status CombinedRcpP4runtimeIpsecTxSaClassificationTable(enum ipsec_table_op table_op,
 									char dst_ip_addr[16],
 									char src_ip_addr[16],
 									char crypto_offload,
@@ -824,7 +709,6 @@ class IPSecP4RuntimeClient {
 				return IPSEC_FAILURE;
 			}
 		}
-#endif
 
 		// This table is applicable only for Combined Recipe
 		enum ipsec_status P4runtimeIpsecTunnelIdTable(enum ipsec_table_op table_op,
@@ -938,101 +822,6 @@ class IPSecP4RuntimeClient {
 			}
 		}
 
-#ifdef STANDALONE_IPSEC_RECIPE
-//For Combined recipe RxPostDecrypt ~ IpsecTunnelTermTable is changed from WCM to SEM for scalability
-		enum ipsec_status P4runtimeIpsecRxPostDecryptTable(enum ipsec_table_op table_op,
-								   char crypto_offload,
-								   char crypto_status,
-								   uint16_t crypto_tag,
-								   char dst_ip_addr[16],
-								   char dst_ip_mask[16],
-								   uint32_t match_priority,
-								   uint32_t mod_blob_ptr) {
-			TableEntry table_entry;
-			WriteRequest request;
-			p4::v1::FieldMatch *field_match;
-			p4::v1::Update *update = request.add_updates();
-			WriteResponse reply;
-			ClientContext context;
-			p4::v1::Action_Param *params;
-			p4::v1::FieldMatch_Ternary *ternary;
-
-			STREAM_CHANNEL();
-			std::string offload = {1};
-	  		std::string offload_mask = {1};
-	  		std::string crypt_status = {0};
-	  		std::string crypt_status_mask = {1};
-	  		char crypt_tag_mask[4];
-			memset(crypt_tag_mask, 0xff, sizeof(crypt_tag_mask));
-
-			table_entry.set_table_id(p4rt_ctx.info_list[RX_POST_DECRYPT_TABLE_IDX].id);
-			table_entry.set_priority(match_priority);
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(1);
-			ternary = field_match->mutable_ternary();
-			ternary->set_value(crypt_status);
-			ternary->set_mask(crypt_status_mask);
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(2);
-			ternary = field_match->mutable_ternary();
-			ternary->set_value(offload);
-			ternary->set_mask(offload_mask);
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(3);
-			ternary = field_match->mutable_ternary();
-			ternary->set_value(Uint32ToByteStream(crypto_tag));
-			ternary->set_mask(convert_ip_to_str(crypt_tag_mask));
-
-			field_match = table_entry.add_match();
-			field_match->set_field_id(4);
-			ternary = field_match->mutable_ternary();
-			ternary->set_value(convert_ip_to_str(dst_ip_addr));
-			ternary->set_mask(convert_ip_to_str(dst_ip_mask));
-
-			if (table_op == IPSEC_TABLE_ADD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(1);
-				params->set_value(Uint32ToByteStream(mod_blob_ptr));
-
-				update->set_type(p4::v1::Update::INSERT);
-			} else if (table_op == IPSEC_TABLE_MOD) {
-				table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[RX_POST_DECRYPT_ACTION_IDX].id);
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(1);
-				params->set_value(Uint32ToByteStream(mod_blob_ptr));
-
-				update->set_type(p4::v1::Update::MODIFY);
-			} else {
-
-				update->set_type(p4::v1::Update::DELETE);
-			}
-			update->mutable_entity()->mutable_table_entry()->CopyFrom(table_entry);
-
-			request.set_device_id(DEVICE_ID);
-			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
-			request.mutable_election_id()->set_low(ELECTION_ID_LOW);
-
-			Status status = stub_->Write(&context, request, &reply);
-			if(status.ok()) {
-				return IPSEC_SUCCESS;
-			} else {
-				if (!status.error_details().empty())
-					LOGGER->Log("ERROR: GRPC status %d : %s, details: %s",
-						    status.error_code(), status.error_message().c_str(),
-						    status.error_details().c_str());
-
-				if (status.error_code() == 2) {
-					return IPSEC_DUP_ENTRY;
-				}
-
-				return IPSEC_FAILURE;
-			}
-		}
-#else
 		//In Combined recipe RxPostDecrypt ~ IpsecTunnelTermTable is changed to SEM
 		enum ipsec_status P4runtimeIpsecRxPostDecryptTable(enum ipsec_table_op table_op,
 								   char crypto_offload,
@@ -1096,7 +885,7 @@ class IPSecP4RuntimeClient {
 				return IPSEC_FAILURE;
 			}
 		}
-#endif
+
 		enum ipsec_status P4runtimeIpsecOuterIpv4EncapModTable(enum ipsec_table_op table_op,
 								       uint32_t mod_blob_ptr,
 								       char src_ip_addr[16],
@@ -1135,15 +924,6 @@ class IPSecP4RuntimeClient {
 				params->set_param_id(3);
 				params->set_value(protocol);
 
-#ifdef STANDALONE_IPSEC_RECIPE				
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(4);
-				params->set_value(ConvertMacToStr(smac));
-
-				params = table_entry.mutable_action()->mutable_action()->add_params();
-				params->set_param_id(5);
-				params->set_value(ConvertMacToStr(dmac));
-#endif
 				update->set_type(p4::v1::Update::INSERT);
 			} else {
 				update->set_type(p4::v1::Update::DELETE);
@@ -1280,25 +1060,14 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 						   uint8_t proto,
 						   bool tunnel_mode) {
 	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
-#ifdef STANDALONE_IPSEC_RECIPE	
-	return client.P4runtimeIpsecTxSaClassificationTable(table_op,
-							    dst_ip_addr,
-							    src_ip_addr,
-							    crypto_offload,
-							    offloadid,
-							    tunnel_id,
-							    proto,
-							    tunnel_mode);
-#else
-        return client.CombinedRcpP4runtimeIpsecTxSaClassificationTable(table_op,
-                                	                            dst_ip_addr,
-                                        	                    src_ip_addr,
-                                                	            crypto_offload,
-                                                        	    offloadid,
-	                                                            tunnel_id,
-        	                                                    proto,
-                	                                            tunnel_mode);
-#endif	
+        return client.P4runtimeIpsecTxSaClassificationTable(table_op,
+                               	                            dst_ip_addr,
+                                     	                    src_ip_addr,
+                                               	            crypto_offload,
+                                                       	    offloadid,
+	                                                    tunnel_id,
+        	                                            proto,
+                                                            tunnel_mode);
 }
 
 enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
@@ -1322,26 +1091,6 @@ enum ipsec_status ipsec_rx_sa_classification_table(enum ipsec_table_op table_op,
 							    offloadid);
 }
 
-#ifdef STANDALONE_IPSEC_RECIPE
-enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
-					      char crypto_offload,
-					      char crypto_status,
-					      uint16_t crypto_tag,
-					      char dst_ip_addr[16],
-					      char dst_ip_mask[16],
-					      uint32_t match_priority,
-					      uint32_t mod_blob_ptr) {
-	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
-	return client.P4runtimeIpsecRxPostDecryptTable(table_op,
-						       crypto_offload,
-						       crypto_status,
-						       crypto_tag,
-						       dst_ip_addr,
-						       dst_ip_mask,
-						       match_priority,
-						       mod_blob_ptr);
-}	
-#else
 enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 					      char crypto_offload,
 					      char crypto_status,
@@ -1359,7 +1108,6 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 						       dst_ip_addr,
 						       mod_blob_ptr);
 }
-#endif
 
 enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
 						   uint32_t mod_blob_ptr,
