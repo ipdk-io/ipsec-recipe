@@ -57,6 +57,10 @@ enum ipsec_status ipsec_tx_spd_table(enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
 						char  mask[16],
 						uint32_t match_priority);
+enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
+                                                char dst_ip_addr[16],
+                                                uint8_t proto,
+						uint32_t offload_id);
 enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
@@ -74,9 +78,8 @@ enum ipsec_status ipsec_rx_post_decrypt_table(enum ipsec_table_op table_op,
 						char crypto_offload,
 						char crypto_status,
 						uint16_t crypt_tag,
+						char src_ip_addr[16],
 						char dst_ip_addr[16],
-						char dst_ip_mask[16],
-						uint32_t match_priority,
 						uint32_t mod_blob_ptr);
 enum ipsec_status ipsec_outer_ipv4_encap_mod_table(enum ipsec_table_op table_op,
 						uint32_t mod_blob_ptr,
@@ -90,7 +93,8 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 						uint32_t mod_blob_ptr,
 						char inner_smac[16],
 						char inner_dmac[16]);
-
+enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
+                                        uint32_t tunnel_id);
 #define SPI_MAX_LIMIT 0xffffff
 struct private_ipsec_offload_t {
 
@@ -534,11 +538,12 @@ METHOD(kernel_ipsec_t, get_spi, status_t,
 {
 	DBG1(DBG_KNL, "entring %s\n", __func__);
 	this->mutex->lock(this->mutex);
+	
 	if(ipsec_set_pipe() == IPSEC_FAILURE)
 	{
 		this->mutex->unlock(this->mutex);
 		DBG1(DBG_KNL, "Unable to set pipe\n");
-		return FAILED;
+	//	return FAILED;
 	}
 	if (ipsec_fetch_spi(spi) == IPSEC_FAILURE)
 	{
@@ -729,17 +734,10 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			     "add entry failed err_code[ %d]", err);
 
 		if (data->sa->mode == MODE_TUNNEL) {
-			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_ADD,
-							       offload_id,
-							       inner_dmac, inner_smac);
-			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table:"
-				     "add entry failed err_code[ %d]", err);
-
 			err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_ADD,
 							  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 							  This can be changed to offload id once map ingress SPI to egress*/,
-							  dst, mac_mask, 1, offload_id);
+							  src, dst, offload_id);
 			if(err == IPSEC_FAILURE) {
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_post_decrypt_tabl:"
 				     "add entry failed err_code[ %d]", err);
@@ -747,8 +745,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 				err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_MOD,
 								  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 								  This can be changed to offload id once map ingress SPI to egress*/,
-								  dst, mac_mask, 1, offload_id);
-
+								  src, dst, offload_id);
 				if(err == IPSEC_FAILURE) {
 					DBG2(DBG_KNL, "ipsec_rx_post_decrypt_table: modify entry failed");
 				}
@@ -785,21 +782,20 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 		DBG2(DBG_KNL,"ADD out_policy offloadid=%d\n", offload_id);
 
 		memset(mask, 0xFF, sizeof(uint32_t));
-
-		err = ipsec_tx_spd_table(IPSEC_TABLE_ADD, dst, mask, 1);
-		if(err == IPSEC_FAILURE) {
-			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: add entry failed");
-		} else if (err == IPSEC_DUP_ENTRY) {
-			err = ipsec_tx_spd_table(IPSEC_TABLE_MOD, dst, mask, 1);
-			if(err == IPSEC_FAILURE) {
-				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: modify entry failed");
-			}
-			if (!reqid_bitset(data->sa->reqid))
-				DBG1(DBG_KNL, "tx spd table: Failed to set the reqid bit!!");
-		} else {
-			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: add entry done");
-		}
 		DBG2(DBG_KNL, "SPI [%x]", spi & 0x00FFFFFF);
+                err = ipsec_spd_table(IPSEC_TABLE_ADD, dst, id->src_ts->get_protocol(id->src_ts), offload_id);
+                if(err == IPSEC_FAILURE) {
+                        DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_spd_table: add entry failed");
+                } else if (err == IPSEC_DUP_ENTRY) {
+                        err = ipsec_spd_table(IPSEC_TABLE_MOD, dst, id->src_ts->get_protocol(id->src_ts), offload_id);
+                        if(err == IPSEC_FAILURE) {
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_spd_table: modify entry failed");
+                        }
+                        if (!reqid_bitset(data->sa->reqid))
+                                DBG1(DBG_KNL, " spd table: Failed to set the reqid bit!!");
+                } else {
+                        DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_spd_table: add entry done");
+                }
 
 		err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
 						       dst, src, 1,
@@ -834,7 +830,12 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
 				     "add entry failed err_code[ %d]", err);
-
+			// New table for combined recipe			
+			err = ipsec_tunnel_id_table(IPSEC_TABLE_ADD,
+							                    offload_id);
+			if(err != IPSEC_SUCCESS)
+				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_ipsec_tunnel_id_table:"
+				     "add entry failed err_code[ %d]", err);
 		}
 
 		this->ipsec_offload_params->remove(this->ipsec_offload_params, current_entry);
@@ -909,19 +910,12 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			     "add entry failed err_code[ %d]", err);
 
 		if (data->sa->mode == MODE_TUNNEL) {
-			err = ipsec_outer_ipv4_decap_mod_table(IPSEC_TABLE_DEL,
-							       offload_id,
-							       inner_dmac, inner_smac);
-			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_outer_ipv4_decap_mod_table:"
-				     "add entry failed err_code[ %d]", err);
-
 			if (!reqid_bitget(data->sa->reqid)) {
 				err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_DEL,
-								  0, 0, 2, dst, mac_mask,
-								  1, offload_id);
+								  0, 0, 2, src, dst,
+								  offload_id);
 				if(err != IPSEC_SUCCESS)
-					DBG2(DBG_KNL, "Inline_crypto_ipsec iipsec_rx_post_decrypt_tabl:"
+					DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_post_decrypt_table:"
 					"add entry failed err_code[ %d]", err);
 			}
 		}
@@ -929,11 +923,10 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		memset(mask, 0xFF, sizeof(uint32_t));
 
 		if (!reqid_bitget(data->sa->reqid)) {
-			/* for Tx table dst = src in inbound */
-			err = ipsec_tx_spd_table(IPSEC_TABLE_DEL, src, mask, 1);
-			if(err == IPSEC_FAILURE) {
-				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_spd_table: del entry failed");
-			}
+			err = ipsec_spd_table(IPSEC_TABLE_DEL, dst, id->src_ts->get_protocol(id->src_ts), offload_id);
+                        if(err == IPSEC_FAILURE) {
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_spd_table: del entry failed");
+                        }
 		}
 
 		if (!reqid_bitget(data->sa->reqid)) {
@@ -945,20 +938,26 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 							       data->sa->mode == MODE_TUNNEL);
 			if(err == IPSEC_FAILURE)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
-				     "add entry failed");
+				     "del entry failed");
 		} else {
 			reqid_bitclear(data->sa->reqid);
 		}
 
 		if (data->sa->mode == MODE_TUNNEL) {
+			
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
 							       offload_id, dst_outer, src_outer,
 							       id->src_ts->get_protocol(id->src_ts),
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
-				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
-				     "add entry failed err_code[ %d]", err);
-
+				DBG2(DBG_KNL, "Inline_crypto_ipsec del_with_encap_outer_ipv4_mod:"
+				     "del entry failed err_code[ %d]", err);
+			//New table for combined recipe
+			err = ipsec_tunnel_id_table(IPSEC_TABLE_DEL,
+							       offload_id);
+			if(err != IPSEC_SUCCESS)
+				DBG2(DBG_KNL, "Inline_crypto_ipsec del_with_tunnel_id_table:"
+				     "del entry failed err_code[ %d]", err);
 		}
 
 		/* Delete inbound and outbound SA */
@@ -1019,7 +1018,6 @@ METHOD(kernel_ipsec_t, destroy, void,
 ipsec_offload_t *ipsec_offload_create()
 {
 	private_ipsec_offload_t *this;
-	int sock =-1;
 
 	INIT(this,
 		.public = {
