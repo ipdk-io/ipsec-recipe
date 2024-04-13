@@ -70,7 +70,8 @@ extern "C" enum ipsec_status ipsec_tx_sa_classification_table(
 						uint32_t offloadid,
 						uint32_t tunnel_id,
 						uint8_t proto,
-						bool tunnel_mode);
+						bool tunnel_mode,
+						bool is_underlay);
 extern "C" enum ipsec_status ipsec_rx_sa_classification_table(
 						enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
@@ -620,7 +621,8 @@ class IPSecP4RuntimeClient {
 									uint32_t offloadid,
 									uint32_t tunnel_id,
 									uint8_t proto,
-									bool tunnel_mode) {
+									bool tunnel_mode,
+									bool is_underlay) {
 			TableEntry table_entry;
 			WriteRequest request;
 			p4::v1::FieldMatch *field_match;
@@ -629,9 +631,9 @@ class IPSecP4RuntimeClient {
 			ClientContext context;
 			p4::v1::Action_Param *params;
 			std::string protocol={0};
-	  		std::string is_tunnel = {0};
+	  		std::string underlay = {0};
 			table_entry.set_table_id(p4rt_ctx.info_list[TX_SA_CLASSIFICATION_TABLE_IDX].id);
-			uint32_t transport_action_id, transport_underlay_action_id;
+			uint32_t transport_action_id, transport_underlay_action_id, tunnel_action_id;
 
 			request.set_device_id(DEVICE_ID);
 			request.mutable_election_id()->set_high(ELECTION_ID_HIGH);
@@ -647,6 +649,8 @@ class IPSecP4RuntimeClient {
 
 			transport_action_id = p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_ACTION_IDX].id;
 			transport_underlay_action_id = p4rt_ctx.info_list[IPSEC_TX_TRANSPORT_UNDERLAY_ACTION_IDX].id;
+                        tunnel_action_id = p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id;
+
 			protocol[0] = proto;
 			field_match->mutable_exact()->set_value(protocol);
 
@@ -655,50 +659,50 @@ class IPSecP4RuntimeClient {
 
 			if (table_op == IPSEC_TABLE_ADD) {
 				if (tunnel_mode) {
-					is_tunnel = {0};
-					field_match->mutable_exact()->set_value(is_tunnel);
-					table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
+					if(is_underlay)
+						underlay = {1};
+					field_match->mutable_exact()->set_value(underlay);
+					table_entry.mutable_action()->mutable_action()->set_action_id(tunnel_action_id);
 					params = table_entry.mutable_action()->mutable_action()->add_params();
-                                        params->set_param_id(1);
-                                        params->set_value(convert_ip_to_str(dst_ip_addr));
+					params->set_param_id(1);
+					params->set_value(convert_ip_to_str(dst_ip_addr));
 					update->set_type(p4::v1::Update::INSERT);
-				
-				} else { 
-					//Transport mode with no encapsulation
-					is_tunnel = {0};
-		                        field_match->mutable_exact()->set_value(is_tunnel);
-					table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
+				} else {
+                                        if(is_underlay) {
+                                                underlay = {1};
+						table_entry.mutable_action()->mutable_action()->set_action_id(transport_underlay_action_id);
+					} else {
+                                                underlay = {0};
+                                                table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
+					}						
+					field_match->mutable_exact()->set_value(underlay);
 					update->set_type(p4::v1::Update::INSERT);
 				}
 			} else if (table_op == IPSEC_TABLE_MOD) {
-                                if (tunnel_mode) {
-                                        is_tunnel = {0};
-                                        field_match->mutable_exact()->set_value(is_tunnel);					
-                                        table_entry.mutable_action()->mutable_action()->set_action_id(p4rt_ctx.info_list[IPSEC_TX_TUNNEL_ACTION_IDX].id);
-                                        params = table_entry.mutable_action()->mutable_action()->add_params();
-                                        params->set_param_id(1);
-                                        params->set_value(convert_ip_to_str(dst_ip_addr));
-                                        update->set_type(p4::v1::Update::MODIFY);
-
-                                } else {
-                                	//Transport mode with no encapsulation
-                                        is_tunnel = {0};
-                                        field_match->mutable_exact()->set_value(is_tunnel);
-                                        table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
-                                        update->set_type(p4::v1::Update::MODIFY);
-				}					
+				if (tunnel_mode) {
+                                        if(is_underlay)
+                                                underlay = {1};
+					field_match->mutable_exact()->set_value(underlay);
+					table_entry.mutable_action()->mutable_action()->set_action_id(tunnel_action_id);
+					params = table_entry.mutable_action()->mutable_action()->add_params();
+					params->set_param_id(1);
+					params->set_value(convert_ip_to_str(dst_ip_addr));
+					update->set_type(p4::v1::Update::MODIFY);
+				} else {
+                                        if(is_underlay) {
+                                                underlay = {1};
+                                                table_entry.mutable_action()->mutable_action()->set_action_id(transport_underlay_action_id);
+                                        } else {
+                                                is_underlay = {0};
+                                                table_entry.mutable_action()->mutable_action()->set_action_id(transport_action_id);
+                                        }
+					field_match->mutable_exact()->set_value(underlay);
+					update->set_type(p4::v1::Update::MODIFY);
+				}
 			} else {
-                                if (tunnel_mode) {
-                                        is_tunnel = {0};
-                                        field_match->mutable_exact()->set_value(is_tunnel);
-
-                                } else {
-                                        //Transport mode with no encapsulation
-                                        is_tunnel = {0};
-                                        field_match->mutable_exact()->set_value(is_tunnel);
-                                        update->set_type(p4::v1::Update::DELETE);
-                                }
-				
+				if(is_underlay)
+					underlay = {1};
+				field_match->mutable_exact()->set_value(underlay);
 				update->set_type(p4::v1::Update::DELETE);
 			}
 
@@ -1068,7 +1072,8 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
                                                    uint32_t offloadid,
                                                    uint32_t tunnel_id,
 						   uint8_t proto,
-						   bool tunnel_mode) {
+						   bool tunnel_mode,
+						   bool is_underlay) {
 	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
         return client.P4runtimeIpsecTxSaClassificationTable(table_op,
                                	                            dst_ip_addr,
@@ -1077,7 +1082,8 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
                                                        	    offloadid,
 	                                                    tunnel_id,
         	                                            proto,
-                                                            tunnel_mode);
+                                                            tunnel_mode,
+							    is_underlay);
 }
 
 enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,

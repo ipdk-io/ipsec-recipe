@@ -68,7 +68,8 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 						uint32_t offloadid,
 						uint32_t tunnel_id,
 						uint8_t proto,
-						bool tunnel_mode);
+						bool tunnel_mode,
+						bool is_underlay);
 enum ipsec_status ipsec_rx_sa_classification_table(enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
@@ -801,25 +802,47 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 						       dst, src, 1,
 						       offload_id, offload_id,
 						       id->src_ts->get_protocol(id->src_ts),
-						       data->sa->mode == MODE_TUNNEL);
+						       data->sa->mode == MODE_TUNNEL, true);
 		if(err == IPSEC_FAILURE) {
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
-			     "add entry failed");
+			     "add entry failed for underlay");
 		} else if (err == IPSEC_DUP_ENTRY) {
 			err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
 							       dst, src, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
-							       data->sa->mode == MODE_TUNNEL);
+							       data->sa->mode == MODE_TUNNEL, true);
 			if(err == IPSEC_FAILURE)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
-				     "Modify entry failed");
+				     "Modify entry failed for underlay");
 
 			if (!reqid_bitset(data->sa->reqid))
 				DBG1(DBG_KNL, "ipsec_tx_sa_classification_table: Failed to set the reqid bit!!");
 		} else
-			DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done");
+			DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done for underlay");
 
+                err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
+                                                       dst, src, 1,
+                                                       offload_id, offload_id,
+                                                       id->src_ts->get_protocol(id->src_ts),
+                                                       data->sa->mode == MODE_TUNNEL, false);
+                if(err == IPSEC_FAILURE) {
+                        DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                             "add entry failed for non underlay");
+                } else if (err == IPSEC_DUP_ENTRY) {
+                        err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
+                                                               dst, src, 1,
+                                                               offload_id, offload_id,
+                                                               id->src_ts->get_protocol(id->src_ts),
+                                                               data->sa->mode == MODE_TUNNEL, false);
+                        if(err == IPSEC_FAILURE)
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                                     "Modify entry failed for non underlay");
+
+                        if (!reqid_bitset(data->sa->reqid))
+                                DBG1(DBG_KNL, "ipsec_tx_sa_classification_table: Failed to set the reqid bit!!");
+                } else
+                        DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done for non underlay");
 
 		if (data->sa->mode == MODE_TUNNEL) {
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
@@ -935,10 +958,20 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 							       src, dst, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
-							       data->sa->mode == MODE_TUNNEL);
+							       data->sa->mode == MODE_TUNNEL, true);
 			if(err == IPSEC_FAILURE)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
 				     "del entry failed");
+
+                        err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
+                                                               src, dst, 1,
+                                                               offload_id, offload_id,
+                                                               id->src_ts->get_protocol(id->src_ts),
+                                                               data->sa->mode == MODE_TUNNEL, false);
+                        if(err == IPSEC_FAILURE)
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                                     "del entry failed");
+
 		} else {
 			reqid_bitclear(data->sa->reqid);
 		}
