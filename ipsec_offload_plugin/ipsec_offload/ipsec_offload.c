@@ -1,6 +1,6 @@
 /******************************************************************
  ******************************************************************
- * Copyright (C) 2000-2002, 2004-2017, 2021-2022 Intel Corporation.
+ * Copyright (C) 2000-2002, 2004-2017, 2021-2024 Intel Corporation.
  *
  *This file is part of ipsec-offload plugin from strongswan.
  *This program is free software; you can redistribute it and/or 
@@ -97,6 +97,9 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
                                         uint32_t tunnel_id);
 #define SPI_MAX_LIMIT 0xffffff
+
+#define PROTO_IP 4
+
 struct private_ipsec_offload_t {
 
 	/**
@@ -848,7 +851,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
 							       offload_id,
 							       src_outer, dst_outer,
-							       id->src_ts->get_protocol(id->src_ts),
+							       PROTO_IP, // proto should be 0x04 in tunnel mode for encap_mod_table
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
@@ -980,7 +983,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
 							       offload_id, dst_outer, src_outer,
-							       id->src_ts->get_protocol(id->src_ts),
+							       PROTO_IP, // proto should be 0x04 in tunnel mode for encap_mod_table
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec del_with_encap_outer_ipv4_mod:"
