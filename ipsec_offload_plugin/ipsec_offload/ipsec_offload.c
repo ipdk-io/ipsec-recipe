@@ -741,7 +741,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_ADD,
 							  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 							  This can be changed to offload id once map ingress SPI to egress*/,
-							  src, dst, offload_id);
+							  src_outer, dst_outer, offload_id);
 			if(err == IPSEC_FAILURE) {
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_post_decrypt_tabl:"
 				     "add entry failed err_code[ %d]", err);
@@ -749,7 +749,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 				err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_MOD,
 								  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 								  This can be changed to offload id once map ingress SPI to egress*/,
-								  src, dst, offload_id);
+								  src_outer, dst_outer, offload_id);
 				if(err == IPSEC_FAILURE) {
 					DBG2(DBG_KNL, "ipsec_rx_post_decrypt_table: modify entry failed");
 				}
