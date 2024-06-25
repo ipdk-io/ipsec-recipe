@@ -62,6 +62,8 @@ enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
                                                 uint8_t proto,
 						uint32_t offload_id);
 enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
+						char outer_dst_ip_addr[16],
+						char outer_src_ip_addr[16],
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
 						char crypto_offload,
@@ -802,6 +804,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
                 }
 
 		err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
+							   dst_outer, src_outer,
 						       dst, src, 1,
 						       offload_id, offload_id,
 						       id->src_ts->get_protocol(id->src_ts),
@@ -811,6 +814,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			     "add entry failed for underlay");
 		} else if (err == IPSEC_DUP_ENTRY) {
 			err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
+								   dst_outer, src_outer,
 							       dst, src, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
@@ -825,6 +829,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done for underlay");
 
                 err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
+													   dst_outer, src_outer,
                                                        dst, src, 1,
                                                        offload_id, offload_id,
                                                        id->src_ts->get_protocol(id->src_ts),
@@ -834,6 +839,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
                              "add entry failed for non underlay");
                 } else if (err == IPSEC_DUP_ENTRY) {
                         err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
+															   dst_outer, src_outer,
                                                                dst, src, 1,
                                                                offload_id, offload_id,
                                                                id->src_ts->get_protocol(id->src_ts),
@@ -958,6 +964,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		if (!reqid_bitget(data->sa->reqid)) {
 			/* for Tx table dst = src in inbound */
 			err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
+								   src_outer, dst_outer,
 							       src, dst, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
@@ -967,6 +974,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 				     "del entry failed");
 
                         err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
+															   src_outer, dst_outer,
                                                                src, dst, 1,
                                                                offload_id, offload_id,
                                                                id->src_ts->get_protocol(id->src_ts),

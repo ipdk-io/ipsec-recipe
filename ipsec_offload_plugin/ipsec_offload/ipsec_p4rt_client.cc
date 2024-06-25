@@ -64,6 +64,8 @@ extern "C" enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
 						uint32_t offload_id);
 extern "C" enum ipsec_status ipsec_tx_sa_classification_table(
 						enum ipsec_table_op table_op,
+						char outer_dst_ip_addr[16],
+						char outer_src_ip_addr[16],
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
 						char crypto_offload,
@@ -615,6 +617,8 @@ class IPSecP4RuntimeClient {
 		}
 
 		enum ipsec_status P4runtimeIpsecTxSaClassificationTable(enum ipsec_table_op table_op,
+									char outer_dst_ip_addr[16],
+									char outer_src_ip_addr[16],
 									char dst_ip_addr[16],
 									char src_ip_addr[16],
 									char crypto_offload,
@@ -665,7 +669,7 @@ class IPSecP4RuntimeClient {
 					table_entry.mutable_action()->mutable_action()->set_action_id(tunnel_action_id);
 					params = table_entry.mutable_action()->mutable_action()->add_params();
 					params->set_param_id(1);
-					params->set_value(convert_ip_to_str(dst_ip_addr));
+					params->set_value(convert_ip_to_str(outer_dst_ip_addr));
 					update->set_type(p4::v1::Update::INSERT);
 				} else {
                                         if(is_underlay) {
@@ -686,7 +690,7 @@ class IPSecP4RuntimeClient {
 					table_entry.mutable_action()->mutable_action()->set_action_id(tunnel_action_id);
 					params = table_entry.mutable_action()->mutable_action()->add_params();
 					params->set_param_id(1);
-					params->set_value(convert_ip_to_str(dst_ip_addr));
+					params->set_value(convert_ip_to_str(outer_dst_ip_addr));
 					update->set_type(p4::v1::Update::MODIFY);
 				} else {
                                         if(is_underlay) {
@@ -1066,7 +1070,9 @@ enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
 }
 
 enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
-						   char dst_ip_addr[16],
+												   char outer_dst_ip_addr[16],
+												   char outer_src_ip_addr[16],
+						   						   char dst_ip_addr[16],
                                                    char src_ip_addr[16],
                                                    char crypto_offload,
                                                    uint32_t offloadid,
@@ -1076,12 +1082,14 @@ enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
 						   bool is_underlay) {
 	IPSecP4RuntimeClient client(p4rt_ctx.p4rt_server_addr);
         return client.P4runtimeIpsecTxSaClassificationTable(table_op,
+															outer_dst_ip_addr,
+															outer_src_ip_addr,
                                	                            dst_ip_addr,
                                      	                    src_ip_addr,
                                                	            crypto_offload,
                                                        	    offloadid,
-	                                                    tunnel_id,
-        	                                            proto,
+	                                                    	tunnel_id,
+        	                                            	proto,
                                                             tunnel_mode,
 							    is_underlay);
 }
