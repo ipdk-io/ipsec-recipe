@@ -13,7 +13,7 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 ## strongSwan Integration with Inline Crypto Engine
 
 * The user should start and stop the strongSwan services as described in strongSwan manual.
-* The strongSwan configuration files must be configured by user as described in
+* strongSwan must be configured by the user as described in
 			https://wiki.strongswan.org/projects/strongswan/wiki/UserDocumentation
 * Confirm that the networking-recipe (the `infrap4d` process, which acts as the gRPC server) is running before starting strongSwan services.
 * strongSwan hosts (Host-A<---->Host-B) must be connected to negotiate the keys.
