@@ -17,7 +17,7 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 			https://wiki.strongswan.org/projects/strongswan/wiki/UserDocumentation
 * Confirm that the networking-recipe (the `infrap4d` process, which acts as the gRPC server) is running before starting strongSwan services.
 * strongSwan hosts (Host-A<---->Host-B) must be connected to negotiate the keys.
-* The user must follow best practices followed by opensource community for other control plane related configurations.
+* You should follow the best practices of the open-source community for other control plane related configurations.
 
 ## Getting Started
 
