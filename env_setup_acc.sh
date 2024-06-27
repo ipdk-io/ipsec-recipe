@@ -1,24 +1,24 @@
 #!/bin/bash
 #
-# Copyright 2023 Intel Corporation
+# Copyright 2023-2024 Intel Corporation
 # SPDX-License-Identifier: GPL-3.0-only
 #
-# Script to setup environment variables facilitating IPsec-Recipe compilation
+# Script to setup environment variables facilitating ipsec-recipe compilation
 #
 
 set -e
 
 # Define directories
-DEPS_INSTALL_DIR="PLUGIN_DEP_INSTALL"
-DEPS_SRC_DIR="PLUGIN_DEP_SRC"
+DEPS_INSTALL=$PWD/"PLUGIN_DEP_INSTALL"
+DEPS_SRC=$PWD/"PLUGIN_DEP_SRC"
 
 # Create directories if they don't exist
-mkdir -p "${DEPS_INSTALL_DIR}"
-mkdir -p "${DEPS_SRC_DIR}"
+mkdir -p "${DEPS_INSTALL}"
+mkdir -p "${DEPS_SRC}"
 
 # Define environment variables
-export DEPS_INSTALL=$PWD/${DEPS_INSTALL_DIR}
-export SRC_DIR=$PWD/${DEPS_SRC_DIR}
+export DEPS_INSTALL
+export DEPS_SRC
 export CMAKE_PREFIX="-DCMAKE_INSTALL_PREFIX=$DEPS_INSTALL"
 export LD_LIBRARY_PATH="$DEPS_INSTALL/lib:$LD_LIBRARY_PATH"
 export PKG_CONFIG_PATH="${DEPS_INSTALL}/lib/pkgconfig:$DEPS_INSTALL/lib/pkgconfig:$PKG_CONFIG_PATH"
@@ -54,7 +54,7 @@ export NUM_THREADS
 echo ""
 echo "Updated Environment Variables ..."
 echo "DEPS_INSTALL=${DEPS_INSTALL}"
-echo "SRC_DIR=${SRC_DIR}"
+echo "DEPS_SRC=${DEPS_SRC}"
 echo "CMAKE_PREFIX=${CMAKE_PREFIX}"
 echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
