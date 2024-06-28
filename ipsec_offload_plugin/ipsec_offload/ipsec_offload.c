@@ -1,6 +1,6 @@
 /******************************************************************
  ******************************************************************
- * Copyright (C) 2000-2002, 2004-2017, 2021-2022 Intel Corporation.
+ * Copyright (C) 2000-2002, 2004-2017, 2021-2024 Intel Corporation.
  *
  *This file is part of ipsec-offload plugin from strongswan.
  *This program is free software; you can redistribute it and/or 
@@ -62,13 +62,16 @@ enum ipsec_status ipsec_spd_table(enum ipsec_table_op table_op,
                                                 uint8_t proto,
 						uint32_t offload_id);
 enum ipsec_status ipsec_tx_sa_classification_table(enum ipsec_table_op table_op,
+						char outer_dst_ip_addr[16],
+						char outer_src_ip_addr[16],
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
 						char crypto_offload,
 						uint32_t offloadid,
 						uint32_t tunnel_id,
 						uint8_t proto,
-						bool tunnel_mode);
+						bool tunnel_mode,
+						bool is_underlay);
 enum ipsec_status ipsec_rx_sa_classification_table(enum ipsec_table_op table_op,
 						char dst_ip_addr[16],
 						char src_ip_addr[16],
@@ -96,6 +99,7 @@ enum ipsec_status ipsec_outer_ipv4_decap_mod_table(
 enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
                                         uint32_t tunnel_id);
 #define SPI_MAX_LIMIT 0xffffff
+
 struct private_ipsec_offload_t {
 
 	/**
@@ -524,6 +528,25 @@ static void ipsec_auto_config_init(pthread_t *tid, bool *flag) {
 	return;
 }
 
+static uint32_t get_ip_family(const char *ip_address) {
+    struct in_addr ipv4_addr;
+    struct in6_addr ipv6_addr;
+
+    // Check if it's a valid IPv4 address
+    if (inet_pton(AF_INET, ip_address, &ipv4_addr) == 1) {
+        return IPv4;
+    }
+
+    // Check if it's a valid IPv6 address
+    if (inet_pton(AF_INET6, ip_address, &ipv6_addr) == 1) {
+        return IPv6;
+    }
+
+    //default to IPv4, in case of failure
+	DBG2(DBG_KNL,"Unable to parse for IP family version for IP addr %s :: [%s] \n", ip_address, __func__);
+	return IPv4;
+}
+
 METHOD(kernel_ipsec_t, get_features, kernel_feature_t,
 	private_ipsec_offload_t *this)
 {
@@ -737,7 +760,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_ADD,
 							  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 							  This can be changed to offload id once map ingress SPI to egress*/,
-							  src, dst, offload_id);
+							  src_outer, dst_outer, offload_id);
 			if(err == IPSEC_FAILURE) {
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_rx_post_decrypt_tabl:"
 				     "add entry failed err_code[ %d]", err);
@@ -745,7 +768,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 				err = ipsec_rx_post_decrypt_table(IPSEC_TABLE_MOD,
 								  0, 0, 2 /*As of now SAD table programs req-id a 2 hence changing it to 2.
 								  This can be changed to offload id once map ingress SPI to egress*/,
-								  src, dst, offload_id);
+								  src_outer, dst_outer, offload_id);
 				if(err == IPSEC_FAILURE) {
 					DBG2(DBG_KNL, "ipsec_rx_post_decrypt_table: modify entry failed");
 				}
@@ -798,34 +821,60 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
                 }
 
 		err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
+							   dst_outer, src_outer,
 						       dst, src, 1,
 						       offload_id, offload_id,
 						       id->src_ts->get_protocol(id->src_ts),
-						       data->sa->mode == MODE_TUNNEL);
+						       data->sa->mode == MODE_TUNNEL, true);
 		if(err == IPSEC_FAILURE) {
 			DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
-			     "add entry failed");
+			     "add entry failed for underlay");
 		} else if (err == IPSEC_DUP_ENTRY) {
 			err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
+								   dst_outer, src_outer,
 							       dst, src, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
-							       data->sa->mode == MODE_TUNNEL);
+							       data->sa->mode == MODE_TUNNEL, true);
 			if(err == IPSEC_FAILURE)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
-				     "Modify entry failed");
+				     "Modify entry failed for underlay");
 
 			if (!reqid_bitset(data->sa->reqid))
 				DBG1(DBG_KNL, "ipsec_tx_sa_classification_table: Failed to set the reqid bit!!");
 		} else
-			DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done");
+			DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done for underlay");
 
+                err = ipsec_tx_sa_classification_table(IPSEC_TABLE_ADD,
+													   dst_outer, src_outer,
+                                                       dst, src, 1,
+                                                       offload_id, offload_id,
+                                                       id->src_ts->get_protocol(id->src_ts),
+                                                       data->sa->mode == MODE_TUNNEL, false);
+                if(err == IPSEC_FAILURE) {
+                        DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                             "add entry failed for non underlay");
+                } else if (err == IPSEC_DUP_ENTRY) {
+                        err = ipsec_tx_sa_classification_table(IPSEC_TABLE_MOD,
+															   dst_outer, src_outer,
+                                                               dst, src, 1,
+                                                               offload_id, offload_id,
+                                                               id->src_ts->get_protocol(id->src_ts),
+                                                               data->sa->mode == MODE_TUNNEL, false);
+                        if(err == IPSEC_FAILURE)
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                                     "Modify entry failed for non underlay");
+
+                        if (!reqid_bitset(data->sa->reqid))
+                                DBG1(DBG_KNL, "ipsec_tx_sa_classification_table: Failed to set the reqid bit!!");
+                } else
+                        DBG2(DBG_KNL, "ipsec_tx_sa_classification_table add entry done for non underlay");
 
 		if (data->sa->mode == MODE_TUNNEL) {
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
 							       offload_id,
 							       src_outer, dst_outer,
-							       id->src_ts->get_protocol(id->src_ts),
+							       get_ip_family(dst_outer), // IPv4 or IPv6
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
@@ -932,13 +981,25 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 		if (!reqid_bitget(data->sa->reqid)) {
 			/* for Tx table dst = src in inbound */
 			err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
+								   src_outer, dst_outer,
 							       src, dst, 1,
 							       offload_id, offload_id,
 							       id->src_ts->get_protocol(id->src_ts),
-							       data->sa->mode == MODE_TUNNEL);
+							       data->sa->mode == MODE_TUNNEL, true);
 			if(err == IPSEC_FAILURE)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
 				     "del entry failed");
+
+                        err = ipsec_tx_sa_classification_table(IPSEC_TABLE_DEL,
+															   src_outer, dst_outer,
+                                                               src, dst, 1,
+                                                               offload_id, offload_id,
+                                                               id->src_ts->get_protocol(id->src_ts),
+                                                               data->sa->mode == MODE_TUNNEL, false);
+                        if(err == IPSEC_FAILURE)
+                                DBG2(DBG_KNL, "Inline_crypto_ipsec ipsec_tx_sa_classification_table:"
+                                     "del entry failed");
+
 		} else {
 			reqid_bitclear(data->sa->reqid);
 		}
@@ -947,7 +1008,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
 							       offload_id, dst_outer, src_outer,
-							       id->src_ts->get_protocol(id->src_ts),
+							       get_ip_family(src_outer), // IPv4 or IPv6
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec del_with_encap_outer_ipv4_mod:"
