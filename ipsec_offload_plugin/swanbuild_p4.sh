@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Copyright 2023 Intel Corporation
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Script to patch and build strongSwan plugin
+#
 
 ARGUMENT_LIST=(
     "b"
@@ -29,16 +35,16 @@ DEPS_INSTALL_PATH=""
 
 function error_log() {
      echo "Build strongswan code with ipsec plugin
-     Usage: swanbuild OPTION(S) ARG
-     or:  swanbuild -t ACC_SDK_DIR [--enable_grpc]  [Downloads strongswan package and build]
-          e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 (builds for ARM)
-          If --enable_grpc option is provided, code will use grpc instead of sockets
-          e.g., swanbuild.sh -t /opt/mev/acc/simics-mev-b0-1505 --enable_grpc (builds for ARM)
+     Usage: swanbuild_p4.sh OPTION(S) ARG
+     or:  swanbuild_p4.sh -t ACC_SDK_DIR [--enable_grpc]  [Downloads strongswan package and build]
+          e.g., swanbuild_p4.sh -t /opt/mev/acc/simics-mev-b0-1505 (builds for ARM)
+          If --enable_grpc option is provided, code will use gRPC instead of sockets
+          e.g., swanbuild_p4.sh -t /opt/mev/acc/simics-mev-b0-1505 --enable_grpc (builds for ARM)
           If building natively, pass native option to -t
-          e.g., swanbuild.sh -t native --enable_grpc (building on same host)
-          e.g., ./swanbuild_p4.sh -t native -o <dependency install dir> --enable_grpc
-     or:  swanbuild -d BUILDDIR [Builds strongswan code in the dir provided]
-          e.g., swanbuild.sh -d ./strongswan-5.9.4 -t /opt/mev/acc/simics-mev-b0-1505
+          e.g., swanbuild_p4.sh -t native --enable_grpc (building on same host)
+          e.g., swanbuild_p4.sh -t native -o <dependency install dir> --enable_grpc
+     or:  swanbuild_p4.sh -d BUILDDIR [Builds strongswan code in the dir provided]
+          e.g., swanbuild_p4.sh -d ./strongswan-5.9.4 -t /opt/mev/acc/simics-mev-b0-1505
      VERSION number can be found at: https://download2.strongswan.org/"
 	exit
 }
