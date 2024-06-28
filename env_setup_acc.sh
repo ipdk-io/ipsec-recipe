@@ -6,8 +6,6 @@
 # Script to setup environment variables facilitating ipsec-recipe compilation
 #
 
-set -e
-
 # Define directories
 DEPS_INSTALL=$PWD/"PLUGIN_DEP_INSTALL"
 DEPS_SRC=$PWD/"PLUGIN_DEP_SRC"
