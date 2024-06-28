@@ -100,8 +100,6 @@ enum ipsec_status ipsec_tunnel_id_table(enum ipsec_table_op table_op,
                                         uint32_t tunnel_id);
 #define SPI_MAX_LIMIT 0xffffff
 
-#define PROTO_IP 4
-
 struct private_ipsec_offload_t {
 
 	/**
@@ -530,6 +528,25 @@ static void ipsec_auto_config_init(pthread_t *tid, bool *flag) {
 	return;
 }
 
+static uint32_t get_ip_family(const char *ip_address) {
+    struct in_addr ipv4_addr;
+    struct in6_addr ipv6_addr;
+
+    // Check if it's a valid IPv4 address
+    if (inet_pton(AF_INET, ip_address, &ipv4_addr) == 1) {
+        return IPv4;
+    }
+
+    // Check if it's a valid IPv6 address
+    if (inet_pton(AF_INET6, ip_address, &ipv6_addr) == 1) {
+        return IPv6;
+    }
+
+    //default to IPv4, in case of failure
+	DBG2(DBG_KNL,"Unable to parse for IP family version for IP addr %s :: [%s] \n", ip_address, __func__);
+	return IPv4;
+}
+
 METHOD(kernel_ipsec_t, get_features, kernel_feature_t,
 	private_ipsec_offload_t *this)
 {
@@ -857,7 +874,7 @@ METHOD(kernel_ipsec_t, add_policy, status_t,
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_ADD,
 							       offload_id,
 							       src_outer, dst_outer,
-							       PROTO_IP, // proto should be 0x04 in tunnel mode for encap_mod_table
+							       get_ip_family(dst_outer), // IPv4 or IPv6
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec add_with_encap_outer_ipv4_mod:"
@@ -991,7 +1008,7 @@ METHOD(kernel_ipsec_t, del_policy, status_t,
 			
 			err = ipsec_outer_ipv4_encap_mod_table(IPSEC_TABLE_DEL,
 							       offload_id, dst_outer, src_outer,
-							       PROTO_IP, // proto should be 0x04 in tunnel mode for encap_mod_table
+							       get_ip_family(src_outer), // IPv4 or IPv6
 							       inner_smac, inner_dmac);
 			if(err != IPSEC_SUCCESS)
 				DBG2(DBG_KNL, "Inline_crypto_ipsec del_with_encap_outer_ipv4_mod:"
