@@ -57,7 +57,7 @@ source env_setup_acc.sh
 ./install_dep_packages_acc.sh
 ```
 
-Clone strongSwan and switch to version 5.9.3 (any version can be used, but verification has been completed with v5.9.3 on Fedora 33)
+Clone strongSwan and switch to version 5.9.3 (any version can be used, but verification has been completed with v5.9.3).
 
 ```bash
 cd ipsec_offload_plugin/
@@ -70,28 +70,16 @@ cd -
 Build strongSwan
 
 ```bash
-Note: The strongswan and the plugin gets only info on IP(L3) and L4 layer. It don't have
-any info on L2 mac addresses. Since in TUNNEL mode we do have a provision to add/delete
-new MAC headers along with IP header, We have to use some manual MAC configuration.
-This manual configurations are only needed for standalone IPSec recipe. Once IPSec and
-networking recipe are integrated the MAC learning will be automatic.
-
-Search following strings and change the value of inner_smac(MAC address of the tunnel
-interface on local host) and inner_dmac(MAC address of the tunnel interface on remote host)
-accordingly in the file "ipsec_offload_plugin/ipsec_offload/ipsec_offload.c"
-inner_smac[16] = {0x00, 0x01, 0x00, 0x00, 0x03, 0x14};
-inner_dmac[16] = {0x84, 0x16, 0x0c, 0xba, 0x90, 0xf0};
-
 ./swanbuild_p4.sh -t native -o $DEPS_INSTALL --enable_grpc
 ```
 
 After successful build, files will be installed in `./output_strongswan` directory.
 
-Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/es2k/compiling-p4-programs.md) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) in `/var/tmp/` dir with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
+Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://ipdk.io/p4cp-userguide/guides/es2k/compiling-p4-programs.html) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) in `/var/tmp/` dir with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
 
 Generate and copy the file /usr/share/stratum/ipsec_role_config.pb.txt using the [link](https://ipdk.io/p4cp-userguide/guides/p4-role-configuration.html)
 
-Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/security/using-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
+Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://ipdk.io/p4cp-userguide/guides/security/using-tls-certificates.html). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
 
 Configure strongSwan
 
