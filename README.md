@@ -57,7 +57,7 @@ source env_setup_acc.sh
 ./install_dep_packages_acc.sh
 ```
 
-Clone strongSwan and switch to version 5.9.3 (any version can be used, but verification has been completed with v5.9.3 on Fedora 33)
+Clone strongSwan and switch to version 5.9.3 (any version can be used, but verification has been completed with v5.9.3).
 
 ```bash
 cd ipsec_offload_plugin/
@@ -87,11 +87,11 @@ inner_dmac[16] = {0x84, 0x16, 0x0c, 0xba, 0x90, 0xf0};
 
 After successful build, files will be installed in `./output_strongswan` directory.
 
-Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/es2k/compiling-p4-programs.md) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) in `/var/tmp/` dir with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
+Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://ipdk.io/p4cp-userguide/guides/es2k/compiling-p4-programs.html) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) in `/var/tmp/` dir with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
 
 Generate and copy the file /usr/share/stratum/ipsec_role_config.pb.txt using the [link](https://ipdk.io/p4cp-userguide/guides/p4-role-configuration.html)
 
-Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://github.com/ipdk-io/networking-recipe/blob/main/docs/guides/security/using-tls-certificates.md). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
+Generate and install the keys and certificates for TLS authentication. Detailed instructions can be found in the [Generating and Installing TLS Certificates guide](https://ipdk.io/p4cp-userguide/guides/security/using-tls-certificates.html). The keys and certificates will need to be copied to `/usr/share/stratum/certs` folder.
 
 Configure strongSwan
 
