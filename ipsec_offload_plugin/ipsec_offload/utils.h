@@ -1,5 +1,5 @@
 // Copyright 2024 Intel Corporation
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #ifndef IPSEC_PLUGIN_UTILS_H_
 #define IPSEC_PLUGIN_UTILS_H_

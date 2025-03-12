@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright 2023-2024 Intel Corporation
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Script to clone, build, and install ipsec-recipe dependencies
 #

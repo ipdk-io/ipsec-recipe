@@ -1,5 +1,5 @@
 // Copyright 2024 Intel Corporation
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/text_format.h>
