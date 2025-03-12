@@ -14,23 +14,24 @@ Modify `load_custom_pkg.sh` with following parameters for linux_networking + ips
 
      ```bash
         sed -i 's/sem_num_pages = .*;/sem_num_pages = 28;/g' $CP_INIT_CFG
-        sed -i 's/lem_num_pages = .*;/lem_num_pages = 10;/g' $CP_INIT_CFG
+        sed -i 's/lem_num_pages = .*;/lem_num_pages = 32;/g' $CP_INIT_CFG
         sed -i 's/mod_num_pages = .*;/mod_num_pages = 2;/g' $CP_INIT_CFG
+        sed -i 's/cxp_num_pages = .*;/cxp_num_pages = 5;/g' $CP_INIT_CFG
         sed -i 's/acc_apf = 4;/acc_apf = 16;/g' $CP_INIT_CFG
      ```
 
 - Download `IPU_Documentation` TAR file compliant with the CI build image and refer to `Getting Started Guide` on how to install compatible `IDPF driver` on host.
 
-- Before configuring and using IPsec-recipe, all networking portion of the setup must be completed. Connectivity between the host, ACC and remote systems must work before attempting any IPsec usage. Refer to the Networking-Recipe (P4 Control Plane) user guide for details on bringing up the networking component: https://ipdk.io/p4cp-userguide/apps/lnw/es2k/es2k-lnw-overlay-vms.html
+- Before configuring and using IPDK/ipsec-recipe, all networking portion of the setup must be completed. Connectivity between the host, ACC and remote systems must work before attempting any IPsec usage. Refer to the Networking-Recipe (P4 Control Plane) user guide for details on bringing up the networking component: https://ipdk.io/p4cp-userguide/apps/lnw/es2k/es2k-lnw-overlay-vms.html
 
 ## IPsec-Recipe Deployment Location
 
 ### strongSwan on ACC
 
-This is a simpler deployment scenario where strongSwan and infrap4d both run on ACC. gRPC communication between strongSwan and infrap4d will occur on `localhost` address without any restrictions.
+This is a simpler deployment scenario where strongSwan and infrap4d both run on ACC. gRPC communication between strongSwan and infrap4d can occur on `localhost` address without any restrictions.
 
 ### strongSwan on host
-In this case, the strongSwan application (with ipsec-recipe plugin) will run on host, and communicate via gRPC to the `infrap4d` process, which runs on the ACC. 
+In this case, the strongSwan application (with IPDK/ipsec-recipe plugin) will run on host, and communicate via gRPC to the `infrap4d` process, which runs on the ACC. 
 
 Following deployment details need to be considered:
 

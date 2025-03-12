@@ -6,7 +6,7 @@ The IPsec recipe is an application that enables strongSwan to use [Infrastructur
 The strongSwan plugin available in this repository implements a policy-based IPsec enablement using security policy database (SPD) and security association database (SAD). The P4Runtime client introduces a programmable IPsec flow using P4 language for the SPD and OpenConfig for SAD configurability.
 
 * IPsec recipe is validated only on Intel&reg; IPU E2100 target
-* Refer to https://ipdk.io/documentation/Recipes/InlineIPsec/
+* Refer to https://ipdk.io/documentation/Recipes/InlineIPsec/ for an overview
 * YANG model for IPsec offload: https://github.com/ipdk-io/openconfig-public/blob/master/release/models/ipsec/openconfig-ipsec-offload.yang
 * Reference P4 program to enable IPsec on DPDK target: https://github.com/ipdk-io/networking-recipe/tree/main/p4src/Inline_IPsec
 
@@ -23,7 +23,7 @@ The strongSwan plugin available in this repository implements a policy-based IPs
 
 ### Prerequisites
 
-It is assumed that the ES2K IPU SDE dependencies have been installed on the
+It is assumed that the Intel&reg; IPU SDE dependencies have been installed on the
 system. The list of dependencies can be found
 in `sde/tools/setup/install_dep.py` file.
 
@@ -75,7 +75,7 @@ Build strongSwan
 
 After successful build, files will be installed in `./output_strongswan` directory.
 
-Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://ipdk.io/p4cp-userguide/guides/es2k/compiling-p4-programs.html) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) in `/var/tmp/` dir with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
+Compile IPsec P4 files and generate the P4 artifacts (p4info.txt and ipsec.pb.bin). These will be used to set the P4 pipeline. See the [Compiling P4 Programs guide](https://ipdk.io/p4cp-userguide/guides/es2k/compiling-p4-programs.html) for details. Copy the P4 artifacts (p4info.txt and ipsec.pb.bin) to `/var/tmp/` directory with file name linux_networking.p4info.txt and ipsec_fixed_func.pb.bin.
 
 Generate and copy the file /usr/share/stratum/ipsec_role_config.pb.txt using the [link](https://ipdk.io/p4cp-userguide/guides/p4-role-configuration.html)
 
