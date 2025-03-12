@@ -1,13 +1,14 @@
 // Copyright 2024-2025 Intel Corporation
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "utils.h"
+
 #include <google/protobuf/message.h>
 #include <google/protobuf/text_format.h>
 
 #include "log_plugin.h"
-#include "utils.h"
 
-int ReadFileToString(const std::string &filename, std::string *buffer) {
+int ReadFileToString(const std::string& filename, std::string* buffer) {
   if (!PathExists(filename)) {
     LOGGER->Log("ERROR: %s: Failed to open file: %s", __func__,
                 filename.c_str());
@@ -33,8 +34,8 @@ int ReadFileToString(const std::string &filename, std::string *buffer) {
   return 0;
 }
 
-int ParseProtoFromString(const std::string &text,
-                         ::google::protobuf::Message *message) {
+int ParseProtoFromString(const std::string& text,
+                         ::google::protobuf::Message* message) {
   if (!::google::protobuf::TextFormat::ParseFromString(text, message)) {
     LOGGER->Log("ERROR: %s Failed to parse proto from following string: %s",
                 __func__, text.c_str());
@@ -44,12 +45,11 @@ int ParseProtoFromString(const std::string &text,
   return 0;
 }
 
-int ReadProtoFromTextFile(const std::string &filename,
-                          ::google::protobuf::Message *message) {
+int ReadProtoFromTextFile(const std::string& filename,
+                          ::google::protobuf::Message* message) {
   std::string text;
   auto status = ReadFileToString(filename, &text);
-  if (status != 0)
-    return status;
+  if (status != 0) return status;
 
   status = ParseProtoFromString(text, message);
   return status;

@@ -12,4 +12,4 @@ enum ipsec_status { IPSEC_SUCCESS, IPSEC_DUP_ENTRY, IPSEC_FAILURE = -1 };
 
 enum ipsec_table_op { IPSEC_TABLE_ADD, IPSEC_TABLE_MOD, IPSEC_TABLE_DEL };
 
-#endif // IPSEC_GRPC_CONNECT_H_
+#endif  // IPSEC_GRPC_CONNECT_H_

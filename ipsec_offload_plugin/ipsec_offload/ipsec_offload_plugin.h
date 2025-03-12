@@ -13,7 +13,6 @@ typedef struct ipsec_offload_plugin_t ipsec_offload_plugin_t;
  * plugin interface for ipsec offload plugin
  */
 struct ipsec_offload_plugin_t {
-
   /**
    * implements plugin interface
    */

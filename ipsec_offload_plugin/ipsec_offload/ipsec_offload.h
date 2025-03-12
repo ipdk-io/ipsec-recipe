@@ -42,7 +42,6 @@ struct address_chunk_t {
   char addr[16];
 };
 struct ipsec_event_listener_t {
-
   /**
    * Called when the lifetime of an IPsec SA expired
    *
@@ -52,13 +51,12 @@ struct ipsec_event_listener_t {
    * @param hard			TRUE if this is a hard expire, FALSE
    * otherwise
    */
-  void (*expire)(uint8_t protocol, uint32_t spi, host_t *dst, bool hard);
+  void (*expire)(uint8_t protocol, uint32_t spi, host_t* dst, bool hard);
 };
 /**
  * Private data of an traffic_selector_t object
  */
 struct ipsec_offload_traffic_selector_t {
-
   /**
    * Type of address
    */
@@ -104,7 +102,6 @@ struct ipsec_offload_traffic_selector_t {
  * Implementation of the ipsec interface intel ipsec plugin
  */
 struct ipsec_offload_t {
-
   /**
    * Implements kernel_ipsec_t interface
    */
@@ -114,7 +111,7 @@ struct ipsec_offload_basic_params_t {
   address_chunk_t src;
   address_chunk_t dst;
   uint32_t spi;
-  uint32_t offloadid; // This SA INDEX is the lower 3 bytes of RX SPI.
+  uint32_t offloadid;  // This SA INDEX is the lower 3 bytes of RX SPI.
   bool config_done;
 };
 
@@ -157,6 +154,6 @@ struct ipsec_offload_config_queue_data {
  *
  * @return			ipsec_offload_t instance
  */
-ipsec_offload_t *ipsec_offload_create();
+ipsec_offload_t* ipsec_offload_create();
 
 #endif /** IPSEC_OFFLOAD_H_ @}*/
