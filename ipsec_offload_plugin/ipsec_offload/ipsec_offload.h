@@ -1,3 +1,6 @@
+// Copyright 2000-2002, 2004-2017, 2021-2023 Intel Corporation
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #ifndef IPSEC_OFFLOAD_H_
 #define IPSEC_OFFLOAD_H_
 
