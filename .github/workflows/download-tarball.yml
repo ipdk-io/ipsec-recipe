@@ -1,0 +1,21 @@
+name: Download Tarball
+
+on:
+  workflow_dispatch: # Allows manual trigger of this workflow
+
+jobs:
+  download-tarball:
+    runs-on: ubuntu-22.04
+
+    steps:
+    # Step 1: Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Step 2: Upload the tarball as an artifact
+    - name: Upload tarball artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: deps-ubuntu22.04
+        path: deps-ubuntu22.04.tar.gz
+
